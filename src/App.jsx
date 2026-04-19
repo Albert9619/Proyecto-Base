@@ -11,9 +11,11 @@ const MiniSwitch = ({ activo, onClick }) => (
   </div>
 );
 
-// ==========================================
-// 🔴 DATOS MAESTROS
-// ==========================================
+const MONO_NARANJA = "#f97316";
+const MONO_VERDE = "#16a34a";
+const MONO_TEXTO = "#333333";
+
+// (Datos maestros se mantienen igual...)
 const productosBase = [
   { id: "1", nombre: "Empanada Crujiente", precio: 1500, categoria: "Fritos", disponible: true, imagen: "/empanada.jpg", opciones: [{ nombre: "Carne", disponible: true }, { nombre: "Pollo", disponible: true }, { nombre: "Arroz", disponible: true }] },
   { id: "2", nombre: "Papa Rellena de la Casa", precio: 2500, categoria: "Fritos", disponible: true, imagen: "/papa-rellena.jpg", opciones: [{ nombre: "Carne", disponible: true }, { nombre: "Huevo", disponible: true }] },
@@ -49,10 +51,6 @@ const salsasIniciales = [
   { id: "suero_p", nombre: "🥛🔥 Suero Picante", disponible: true }
 ];
 
-const MONO_NARANJA = "#f97316";
-const MONO_VERDE = "#16a34a";
-const MONO_TEXTO = "#333333";
-
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [tabActiva, setTabActiva] = useState("productos"); 
@@ -79,14 +77,12 @@ export default function App() {
   const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
   const tipoArrozHoy = ["lunes", "miércoles", "viernes"].includes(hoy) ? "Pollo" : "Cerdo";
 
-  // Detector de Mesa por URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mesaURL = params.get('mesa');
     if (mesaURL) { setMesa(mesaURL); setDireccion(`Mesa ${mesaURL}`); }
   }, []);
 
-  // Conexión Real-Time Firebase
   useEffect(() => {
     const unsubProd = onSnapshot(collection(db, "productos"), (s) => setProductosFB(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubExtras = onSnapshot(collection(db, "extrasArroz"), (s) => setExtrasFB(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -97,7 +93,6 @@ export default function App() {
     return () => { unsubProd(); unsubExtras(); unsubSalsas(); unsubTienda(); unsubPedidos(); };
   }, []);
 
-  // Persistencia local
   useEffect(() => {
     const p = localStorage.getItem("pedido_mono_storage");
     if (p) setPedido(JSON.parse(p));
@@ -141,35 +136,34 @@ export default function App() {
     setTimeout(() => setNotificacion(""), 2000);
   };
 
-  // 🚀 FUNCIÓN DE PROCESAMIENTO INTELIGENTE
+  // 🚀 LÓGICA DE PEDIDO MEJORADA
   const procesarPedido = async () => {
-    if (!nombre || !direccion || !metodoPago) return alert("Faltan datos");
-    
+    // Solo pedimos datos si NO es mesa (Domicilio)
+    if (!mesa && (!nombre || !direccion || !metodoPago)) {
+        return alert("Para domicilios necesitamos Nombre, Dirección y Pago");
+    }
+
     const tComida = pedido.reduce((acc, i) => acc + i.subtotal, 0);
     const tFinal = tComida + (mesa ? 0 : (tComida < 8000 ? 2000 : 0));
     const horaActual = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
-    // 1. Guardar en Monitor de Firebase (Esto sucede para ambos casos)
     const idPedido = `ORD-${Date.now()}`;
     await setDoc(doc(db, "pedidos", idPedido), {
-      nombre, 
-      ubicacion: mesa ? `MESA ${mesa}` : direccion, 
+      nombre: mesa ? "Cliente Local" : nombre,
+      ubicacion: mesa ? `MESA ${mesa}` : direccion,
       productos: pedido,
-      salsas: salsasElegidas, 
-      total: tFinal, 
-      pago: metodoPago, 
-      timestamp: Date.now(), 
-      hora: horaActual, 
+      salsas: salsasElegidas,
+      total: tFinal,
+      pago: mesa ? "Pago en Caja" : metodoPago,
+      timestamp: Date.now(),
+      hora: horaActual,
       notas
     });
 
-    // 2. Lógica de salida
     if (mesa) {
-      // Flujo Local: Solo confirmación en pantalla
       setAgradecimiento(true);
       setPedido([]);
     } else {
-      // Flujo Domicilio: Abrir WhatsApp para logística
       const lista = pedido.map(i => `• ${i.cantidad}x ${i.nombre} (${i.detalle})`).join('\n');
       const msg = `*🛵 DOMICILIO*\n👤: ${nombre}\n🧾:\n${lista}\n💰: $${tFinal.toLocaleString()}\n💳: ${metodoPago}\n📝: ${notas}`;
       window.open(`https://wa.me/573148686455?text=${encodeURIComponent(msg)}`);
@@ -178,6 +172,12 @@ export default function App() {
     }
   };
 
+  const eliminarDelCarrito = (idUnico) => setPedido(pedido.filter(item => item.idUnico !== idUnico));
+  const vaciarCarrito = () => { if(window.confirm("¿Borrar todo el pedido?")) setPedido([]); };
+
+  // ==========================================
+  // 🔴 VISTA ADMINISTRADOR
+  // ==========================================
   if (isAdmin) {
     return (
       <div style={{padding: '20px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif'}}>
@@ -215,18 +215,21 @@ export default function App() {
 
           {tabActiva === "pedidos" && (
             <div style={{display:'grid', gap:'15px'}}>
-              {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos 🐒💤</div> ) : (
+              {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos pendientes 🐒💤</div> ) : (
                 pedidosFB.map(p => (
                   <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'20px', borderLeft:`10px solid ${p.ubicacion?.includes('MESA') ? '#f97316' : '#3b82f6'}`, boxShadow:'0 4px 6px rgba(0,0,0,0.05)'}}>
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                       <div><h3 style={{margin:0}}>{p.ubicacion}</h3><p style={{margin:0, fontSize:'14px', color:'#666'}}>{p.hora} - {p.nombre}</p></div>
-                      <button onClick={() => { if(window.confirm("¿Listo?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
+                      <button onClick={() => { if(window.confirm("¿Orden lista?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
                     </div>
                     <div style={{background:'#f8fafc', padding:'12px', borderRadius:'12px', marginTop:'15px'}}>
-                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
+                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px', marginBottom:'4px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
+                      <div style={{marginTop:'8px', fontSize:'13px', borderTop:'1px solid #eee', paddingTop:'5px'}}><strong>🍯 Salsas:</strong> {p.salsas?.join(', ') || 'Ninguna'}</div>
                     </div>
-                    <div style={{marginTop:'10px', fontWeight:'bold'}}>${p.total?.toLocaleString()} | {p.pago}</div>
-                    {p.notas && <div style={{marginTop:'5px', color:MONO_NARANJA, fontSize:'12px'}}>📝 {p.notas}</div>}
+                    <div style={{marginTop:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                        <strong style={{fontSize:'18px'}}>${p.total?.toLocaleString()}</strong>
+                        <span style={{fontSize:'12px', background:'#eee', padding:'4px 10px', borderRadius:'20px'}}>{p.pago}</span>
+                    </div>
                   </div>
                 ))
               )}
@@ -235,7 +238,7 @@ export default function App() {
 
           {tabActiva === "mesas" && (
             <div style={{background:'white', padding:'30px', borderRadius:'30px'}}>
-              <h2 style={{marginTop:0}}>Generador QR para Mesas 🏁</h2>
+              <h2 style={{marginTop:0}}>Generador QR Dinámico 🏁</h2>
               <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'20px'}}>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
                   const urlMesa = `${window.location.origin}/?mesa=${n}`;
@@ -255,12 +258,16 @@ export default function App() {
     );
   }
 
+  // ==========================================
+  // 🟡 VISTA CLIENTE
+  // ==========================================
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#fffcf5', minHeight: '100vh', paddingBottom: '120px', color: MONO_TEXTO }}>
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
       
       {notificacion && <div style={{position:'fixed', top:'20px', left:'50%', transform:'translateX(-50%)', background: MONO_VERDE, color:'white', padding:'15px 30px', borderRadius:'50px', zIndex: 10000, fontWeight:'bold', boxShadow:'0 5px 15px rgba(0,0,0,0.1)'}}>{notificacion}</div>}
       
+      {/* Modals Login y Agradecimiento se mantienen igual */}
       {mostrarLogin && (
         <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.85)', zIndex:40000, display:'flex', justifyContent:'center', alignItems:'center'}}>
           <div style={{background:'white', padding:'30px', borderRadius:'30px', textAlign:'center', width:'90%', maxWidth:'350px'}}>
@@ -282,9 +289,6 @@ export default function App() {
         <img src="/logo-fritos-el-mono.jpg" alt="Logo" style={{width: '100%', height: '220px', objectFit: 'cover'}} />
         <div style={{padding: '25px 0'}}>
             <h1 onClick={() => setMostrarLogin(true)} style={{color: MONO_NARANJA, margin:'0', fontSize: '2.5rem', fontWeight: '900', cursor:'pointer'}}>Fritos El Mono 🐒</h1>
-            <div style={{display:'inline-block', marginTop: '10px', background: '#fff7ed', padding: '6px 20px', borderRadius: '20px', fontWeight: 'bold'}}>
-              Arroz de hoy: {tipoArrozHoy}
-            </div>
         </div>
       </header>
 
@@ -294,6 +298,7 @@ export default function App() {
         ))}
       </div>
 
+      {/* Grid de Productos */}
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '30px', padding: '0 20px', maxWidth:'1200px', margin:'0 auto'}}>
         {productosMostrar.filter(p => p.categoria === categoriaActiva).map(p => {
             const sel = selecciones[p.id] || {};
@@ -332,13 +337,21 @@ export default function App() {
         })}
       </div>
 
+      {/* TICKET DE PEDIDO */}
       {pedido.length > 0 && (
         <div style={{ maxWidth: '750px', margin: '50px auto 100px', background: 'white', padding: '40px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 20px 45px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '32px', fontWeight: '900' }}>🛒 Tu Pedido</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+            <h2 style={{ fontSize: '32px', fontWeight: '900', margin: 0 }}>🛒 Tu Pedido</h2>
+            <button onClick={vaciarCarrito} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Vaciar Todo</button>
+          </div>
+
           {pedido.map(item => (
-            <div key={item.idUnico} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '15px 0' }}>
+            <div key={item.idUnico} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '15px 0', alignItems: 'center' }}>
               <span style={{flex: 1}}><strong>{item.cantidad}x</strong> {item.nombre} <br /><small>{item.detalle}</small></span>
-              <strong style={{fontSize: '18px'}}>${item.subtotal.toLocaleString()}</strong>
+              <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                <strong style={{fontSize: '18px'}}>${item.subtotal.toLocaleString()}</strong>
+                <button onClick={() => eliminarDelCarrito(item.idUnico)} style={{background:'none', border:'none', color:'#ef4444', fontSize:'20px', cursor:'pointer', padding:'5px'}}>❌</button>
+              </div>
             </div>
           ))}
 
@@ -358,14 +371,26 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '25px' }}>
-            <input type="text" placeholder="Tu nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd' }} />
-            {!mesa ? ( <input type="text" placeholder="Dirección exacta" value={direccion} onChange={(e) => setDireccion(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd' }} /> ) : ( <div style={{ padding: '18px', background: '#ecfdf5', borderRadius: '15px', border: '2px solid #10b981', color: '#065f46', fontWeight: 'bold', textAlign: 'center' }}>📍 Estas pidiendo desde la MESA {mesa}</div> )}
-            <textarea placeholder="Notas..." value={notas} onChange={(e) => setNotas(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd', height: '80px' }} />
-            <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd', fontWeight: 'bold' }}>
-              <option value="">-- ¿Cómo pagas? --</option><option value="Efectivo">Efectivo</option><option value="Nequi">Nequi</option>
-            </select>
+            {/* CAMPOS CONDICIONALES: Solo se ven si NO es mesa */}
+            {!mesa && (
+              <>
+                <input type="text" placeholder="Tu nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd' }} />
+                <input type="text" placeholder="Dirección exacta" value={direccion} onChange={(e) => setDireccion(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd' }} />
+                <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd', fontWeight: 'bold' }}>
+                  <option value="">-- ¿Cómo pagas? --</option><option value="Efectivo">Efectivo</option><option value="Nequi">Nequi</option>
+                </select>
+              </>
+            )}
+
+            {/* AVISO DE MESA */}
+            {mesa && (
+              <div style={{ padding: '18px', background: '#ecfdf5', borderRadius: '15px', border: '2px solid #10b981', color: '#065f46', fontWeight: 'bold', textAlign: 'center' }}>
+                📍 Estas pidiendo desde la MESA {mesa}
+              </div>
+            )}
+
+            <textarea placeholder="Notas opcionales..." value={notas} onChange={(e) => setNotas(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd', height: '80px' }} />
             
-            {/* BOTÓN INTELIGENTE: Cambia color y texto según la ubicación */}
             <button 
               onClick={procesarPedido} 
               style={{ 

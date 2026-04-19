@@ -16,10 +16,11 @@ const MONO_VERDE = "#16a34a";
 const MONO_AZUL = "#3b82f6";
 const MONO_TEXTO = "#333333";
 
-// Sonido de notificación (Base64 corto)
 const beep = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ9vT19vT19vT19vT19vT19v");
 
-// (Productos Base se mantienen igual...)
+// ==========================================
+// 🔴 DATOS MAESTROS COMPLETOS
+// ==========================================
 const productosBase = [
   { id: "1", nombre: "Empanada Crujiente", precio: 1500, categoria: "Fritos", disponible: true, imagen: "/empanada.jpg", opciones: [{ nombre: "Carne", disponible: true }, { nombre: "Pollo", disponible: true }, { nombre: "Arroz", disponible: true }] },
   { id: "2", nombre: "Papa Rellena de la Casa", precio: 2500, categoria: "Fritos", disponible: true, imagen: "/papa-rellena.jpg", opciones: [{ nombre: "Carne", disponible: true }, { nombre: "Huevo", disponible: true }] },
@@ -30,30 +31,29 @@ const productosBase = [
   { id: "d2", nombre: "Desayuno Especial", precio: 10000, categoria: "Desayunos", disponible: true, imagen: "/desayuno-huevo.jpg", config: { acompanamiento: ["Patacón", "Arepa"], proteina: ["Carne desmechada", "Pollo desmechado"], jugos: ["Avena", "Maracuyá"] } },
   { id: "MMuffStcgfJe5ow5X4qV", nombre: "Jugo Natural Helado", precio: 0, categoria: "Bebidas", disponible: true, imagen: "/jugo-natural.jpg", sabores: [{ nombre: "Avena", disponible: true }, { nombre: "Maracuyá", disponible: true }], tamanos: [{ nombre: "Pequeño", precio: 1000, disponible: true }, { nombre: "Mediano", precio: 1500, disponible: true }, { nombre: "Grande", precio: 2000, disponible: true }] },
   { id: "b1", nombre: "Coca-Cola", precio: 0, categoria: "Bebidas", disponible: true, imagen: "/cocacola.jpg", tamanos: [{ nombre: "Mini", precio: 2500, disponible: true }, { nombre: "Personal", precio: 3500, disponible: true }, { nombre: "Familiar", precio: 6500, disponible: true }] },
+  { id: "b2", nombre: "Pony Malta", precio: 0, categoria: "Bebidas", disponible: true, imagen: "/malta.jpg", tamanos: [{ nombre: "Mini", precio: 2500, disponible: true }, { nombre: "Personal", precio: 3500, disponible: true }] },
+  { id: "b3", nombre: "Agua Cielo", precio: 2000, categoria: "Bebidas", disponible: true, imagen: "/agua.jpg"},
+  { id: "b4", nombre: "Tinto Tradicional", precio: 1000, categoria: "Bebidas", disponible: true, imagen: "/tinto.jpg" },
+  { id: "b5", nombre: "Café con Leche", precio: 1500, categoria: "Bebidas", disponible: true, imagen: "/cafe-leche.jpg" },
+  { id: "b6", nombre: "Chocolate Caliente", precio: 1500, categoria: "Bebidas", disponible: true, imagen: "/chocolate.jpg", sabores: [{ nombre: "Con Leche", disponible: true }, { nombre: "Sin Leche", disponible: true }] },
+  { id: "b7", nombre: "Aromáticas", precio: 1000, categoria: "Bebidas", disponible: true, imagen: "/aromática.jpg" , sabores: [{ nombre: "Manzanilla", disponible: true},{nombre: "Hierbabuena", disponible: true}]},
+  { id: "milo1", nombre: "Milo Refrescante", precio: 4000, categoria: "Bebidas", disponible: true, imagen: "/milo.jpg" }, 
   { id: "lzEcQicq9WUrxw7FEaq7", nombre: "Arroz Especial del Día", precio: 6000, categoria: "Arroces", disponible: true, imagen: "/arroz-pollo.jpg" }
 ];
-
-const extrasArrozBase = [{ id: 'huevo', nombre: "Huevo Cocido", disponible: true, precio: 1000 }, { id: 'queso', nombre: "Tajada de Queso", disponible: true, precio: 1000 }];
-const salsasIniciales = [{ id: "roja", nombre: "🔴 Roja", disponible: true }, { id: "pique", nombre: "🔥 Pique", disponible: true }, { id: "suero", nombre: "🥛 Suero", disponible: true }];
 
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [tabActiva, setTabActiva] = useState("pedidos"); 
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [manualOverride, setManualOverride] = useState(true);
   const [categoriaActiva, setCategoriaActiva] = useState("Fritos");
-  const [productosFB, setProductosFB] = useState([]);
   const [pedidosFB, setPedidosFB] = useState([]); 
   const [pedido, setPedido] = useState([]);
   const [selecciones, setSelecciones] = useState({});
   const [cantidades, setCantidades] = useState({});
-  const [salsasElegidas, setSalsasElegidas] = useState([]);
-  const [notificacion, setNotificacion] = useState("");
   const [nombre, setNombre] = useState("");
   const [direccion, setDireccion] = useState("");
   const [metodoPago, setMetodoPago] = useState("");
-  const [notas, setNotas] = useState("");
   const [agradecimiento, setAgradecimiento] = useState(false);
   const [mesa, setMesa] = useState(null);
 
@@ -66,7 +66,6 @@ export default function App() {
     if (mesaURL) { setMesa(mesaURL); setDireccion(`Mesa ${mesaURL}`); setNombre("Cliente Local"); setMetodoPago("Caja"); }
   }, []);
 
-  // 🔔 Sincronización con Sonido
   useEffect(() => {
     const q = query(collection(db, "pedidos"), orderBy("timestamp", "asc"));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -78,22 +77,16 @@ export default function App() {
     return () => unsub();
   }, [isAdmin]);
 
-  useEffect(() => {
-    const p = localStorage.getItem("mono_p");
-    if (p) setPedido(JSON.parse(p));
-  }, []);
-
-  useEffect(() => { localStorage.setItem("mono_p", JSON.stringify(pedido)); }, [pedido]);
-
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
     if (p.disponible === false) return alert("Agotado");
     if (p.opciones && !sel.sabor && p.categoria === "Fritos") return alert("Elige un sabor");
-    let precioB = p.tamanos ? (sel.tamano?.precio || p.tamanos[0].precio) : (p.precio || 0);
-    setPedido([...pedido, { idUnico: Date.now(), nombre: p.nombre, cantidad: cant, subtotal: precioB * cant, detalle: sel.sabor || '' }]);
-    setNotificacion("¡Añadido! 🥟");
-    setTimeout(() => setNotificacion(""), 2000);
+    
+    let precioB = p.precio || 0;
+    if (sel.tamano) precioB = sel.tamano.precio || 0;
+    
+    setPedido([...pedido, { idUnico: Date.now(), nombre: p.nombre, cantidad: cant, subtotal: precioB * cant, detalle: sel.sabor || sel.tamano?.nombre || '' }]);
   };
 
   const procesarPedido = async () => {
@@ -103,13 +96,8 @@ export default function App() {
     await setDoc(doc(db, "pedidos", id), {
       nombre, ubicacion: mesa ? `MESA ${mesa}` : direccion, productos: pedido,
       total, pago: metodoPago, timestamp: Date.now(), hora: new Date().toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }), 
-      estado: "pendiente", notas
+      estado: "pendiente"
     });
-
-    if (!mesa) {
-      const msg = `*🛵 DOMICILIO*\n👤: ${nombre}\n💰: $${total.toLocaleString()}`;
-      window.open(`https://wa.me/573148686455?text=${encodeURIComponent(msg)}`);
-    }
     setAgradecimiento(true); setPedido([]);
   };
 
@@ -117,43 +105,37 @@ export default function App() {
     await updateDoc(doc(db, "pedidos", id), { estado: nuevoEstado });
   };
 
-  // ==========================================
-  // 🔴 VISTA ADMINISTRADOR (ESTADOS + CAJA)
-  // ==========================================
   if (isAdmin) {
-    const ventasHoy = pedidosFB.reduce((acc, p) => acc + p.total, 0);
+    // Calculamos ventas solo de pedidos PAGADOS
+    const ventasPagadasHoy = pedidosFB.filter(p => p.estado === "pagado").reduce((acc, p) => acc + p.total, 0);
+
     return (
       <div style={{padding: '20px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif'}}>
         <div style={{maxWidth:'1100px', margin:'0 auto'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', mb:'20px'}}>
-             <h1 style={{color: MONO_NARANJA}}>Monitor POS 🐒</h1>
-             <div style={{background: MONO_TEXTO, color:'white', padding:'10px 20px', borderRadius:'15px'}}>
-                Ventas del Día: <strong>${ventasHoy.toLocaleString()}</strong>
+             <h1 style={{color: MONO_NARANJA}}>Monitor Mono 🐒</h1>
+             <div style={{background: MONO_TEXTO, color:'white', padding:'10px 20px', borderRadius:'15px', textAlign:'right'}}>
+                Ventas Pagadas: <strong style={{fontSize:'20px'}}>${ventasPagadasHoy.toLocaleString()}</strong>
              </div>
              <button onClick={() => setIsAdmin(false)} style={{padding:'10px 20px', borderRadius:'10px', background:'#eee', border:'none'}}>Salir</button>
           </div>
 
           <div style={{display:'flex', gap:'10px', mb:'25px'}}>
-             <button onClick={() => setTabActiva("pedidos")} style={{flex:1, padding:'15px', borderRadius:'15px', border:'none', background: tabActiva === "pedidos" ? MONO_NARANJA : 'white', color: tabActiva === "pedidos" ? 'white' : MONO_TEXTO, fontWeight:'bold', cursor:'pointer'}}>🧾 Comandas</button>
-             <button onClick={() => setTabActiva("mesas")} style={{flex:1, padding:'15px', borderRadius:'15px', border:'none', background: tabActiva === "mesas" ? MONO_NARANJA : 'white', color: tabActiva === "mesas" ? 'white' : MONO_TEXTO, fontWeight:'bold', cursor:'pointer'}}>🪑 Mesas</button>
+             <button onClick={() => setTabActiva("pedidos")} style={{flex:1, padding:'15px', borderRadius:'15px', border:'none', background: tabActiva === "pedidos" ? MONO_NARANJA : 'white', color: tabActiva === "pedidos" ? 'white' : MONO_TEXTO, fontWeight:'bold', cursor:'pointer'}}>👨‍🍳 Cocina</button>
+             <button onClick={() => setTabActiva("mesas")} style={{flex:1, padding:'15px', borderRadius:'15px', border:'none', background: tabActiva === "mesas" ? MONO_NARANJA : 'white', color: tabActiva === "mesas" ? 'white' : MONO_TEXTO, fontWeight:'bold', cursor:'pointer'}}>💰 Cobro Mesas</button>
           </div>
 
           {tabActiva === "pedidos" && (
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(340px, 1fr))', gap:'20px'}}>
-              {pedidosFB.filter(p => p.estado !== "finalizado").map(p => (
-                <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'30px', borderLeft:`10px solid ${p.estado === 'pendiente' ? '#fbbf24' : p.estado === 'preparando' ? MONO_AZUL : MONO_VERDE}`, boxShadow:'0 5px 15px rgba(0,0,0,0.05)'}}>
-                  <div style={{display:'flex', justifyContent:'space-between'}}>
-                     <strong>{p.ubicacion}</strong>
-                     <span style={{fontSize:'12px', background:'#eee', padding:'2px 8px', borderRadius:'10px'}}>{p.hora}</span>
-                  </div>
-                  <div style={{margin:'15px 0', fontSize:'14px'}}>
-                    {p.productos.map((item, i) => ( <div key={i}>• {item.cantidad}x {item.nombre} <small>({item.detalle})</small></div> ))}
-                    {p.notas && <div style={{mt:'10px', color:MONO_NARANJA, fontWeight:'bold'}}>⚠️ {p.notas}</div>}
+              {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
+                <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'30px', borderLeft:`10px solid ${p.estado === 'pendiente' ? '#fbbf24' : MONO_AZUL}`, boxShadow:'0 5px 15px rgba(0,0,0,0.05)'}}>
+                  <div style={{display:'flex', justifyContent:'space-between'}}><strong>{p.ubicacion}</strong><small>{p.hora}</small></div>
+                  <div style={{margin:'10px 0'}}>
+                    {p.productos.map((item, i) => ( <div key={i} style={{fontSize:'14px'}}>• {item.cantidad}x {item.nombre} <small>({item.detalle})</small></div> ))}
                   </div>
                   <div style={{display:'flex', gap:'5px'}}>
-                     {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{flex:1, background:MONO_AZUL, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold'}}>Preparar 👨‍🍳</button>}
-                     {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'listo')} style={{flex:1, background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold'}}>¡Listo! ✅</button>}
-                     {p.estado === 'listo' && <button onClick={() => actualizarEstado(p.id, 'finalizado')} style={{flex:1, background:MONO_TEXTO, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold'}}>Entregado 🏁</button>}
+                     {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{flex:1, background:MONO_AZUL, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold'}}>Preparar</button>}
+                     {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'entregado')} style={{flex:1, background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold'}}>Entregado ✅</button>}
                   </div>
                 </div>
               ))}
@@ -161,19 +143,23 @@ export default function App() {
           )}
 
           {tabActiva === "mesas" && (
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'20px'}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:'20px'}}>
               {[1,2,3,4,5,6,7,8,9,10].map(n => {
-                const mesaPed = pedidosFB.filter(p => p.ubicacion === `MESA ${n}` && p.estado !== "finalizado");
+                const mesaPed = pedidosFB.filter(p => p.ubicacion === `MESA ${n}` && p.estado !== "pagado");
                 const total = mesaPed.reduce((acc, p) => acc + p.total, 0);
+                if (mesaPed.length === 0) return null;
                 return (
-                  <div key={n} style={{background: mesaPed.length > 0 ? '#fff7ed' : 'white', padding:'20px', borderRadius:'25px', textAlign:'center', border: mesaPed.length > 0 ? `2px solid ${MONO_NARANJA}` : '1px solid #eee'}}>
-                    <h3>MESA {n}</h3>
-                    {mesaPed.length > 0 ? (
-                      <>
-                        <div style={{fontSize:'24px', fontWeight:'900', color:MONO_NARANJA}}>${total.toLocaleString()}</div>
-                        <button onClick={() => mesaPed.forEach(p => actualizarEstado(p.id, 'finalizado'))} style={{marginTop:'10px', width:'100%', padding:'10px', background:MONO_TEXTO, color:'white', border:'none', borderRadius:'10px', fontWeight:'bold'}}>PAGAR CUENTA 💸</button>
-                      </>
-                    ) : <span style={{color:'#999'}}>Mesa Libre</span>}
+                  <div key={n} style={{background:'white', padding:'25px', borderRadius:'30px', border:`2px solid ${MONO_NARANJA}`, boxShadow:'0 10px 20px rgba(0,0,0,0.05)'}}>
+                    <h3 style={{margin:0}}>MESA {n}</h3>
+                    <div style={{margin:'15px 0', fontSize:'14px', maxHeight:'150px', overflowY:'auto', background:'#f8fafc', padding:'10px', borderRadius:'15px'}}>
+                      {mesaPed.map(p => (
+                        <div key={p.id} style={{borderBottom:'1px solid #eee', mb:'5px', pb:'5px'}}>
+                          {p.productos.map((item, i) => ( <div key={i}>• {item.cantidad}x {item.nombre} <small>({item.detalle})</small></div> ))}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{fontSize:'32px', fontWeight:'900', textAlign:'center', color:MONO_NARANJA}}>${total.toLocaleString()}</div>
+                    <button onClick={() => {if(window.confirm("¿Cobrar cuenta?")) mesaPed.forEach(p => actualizarEstado(p.id, 'pagado'))}} style={{marginTop:'15px', width:'100%', padding:'15px', background:MONO_TEXTO, color:'white', border:'none', borderRadius:'15px', fontWeight:'bold', cursor:'pointer'}}>PAGAR TODO 💸</button>
                   </div>
                 );
               })}
@@ -184,25 +170,55 @@ export default function App() {
     );
   }
 
-  // (Vista Cliente se mantiene con tu diseño actual...)
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#fffcf5', minHeight: '100vh', paddingBottom: '120px' }}>
-      {notificacion && <div style={{position:'fixed', top:'20px', left:'50%', transform:'translateX(-50%)', background: MONO_VERDE, color:'white', padding:'15px 30px', borderRadius:'50px', zIndex: 10000, fontWeight:'bold'}}>{notificacion}</div>}
-      
-      <header style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'0 0 50px 50px', boxShadow:'0 5px 30px rgba(0,0,0,0.05)'}}>
+      <header style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'0 0 50px 50px'}}>
         <h1 onClick={() => setMostrarLogin(true)} style={{color: MONO_NARANJA, fontSize:'2.5rem', fontWeight:'900', cursor:'pointer'}}>Fritos El Mono 🐒</h1>
         <div style={{marginTop:'10px', background:'#fff7ed', padding:'8px 20px', borderRadius:'20px', fontWeight:'bold', display:'inline-block'}}>Arroz de hoy: {tipoArrozHoy}</div>
       </header>
 
-      {/* Grid de Productos (con tus estilos) */}
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px', padding: '25px'}}>
-        {productosBase.filter(p => p.categoria === categoriaActiva).map(p => (
-          <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'40px', boxShadow:'0 10px 20px rgba(0,0,0,0.02)', textAlign:'center'}}>
-            <h3>{p.nombre}</h3>
-            <p style={{color:MONO_NARANJA, fontWeight:'900', fontSize:'22px'}}>${p.precio.toLocaleString()}</p>
-            <button onClick={() => agregarAlCarrito(p)} style={{width:'100%', padding:'15px', background:MONO_NARANJA, color:'white', borderRadius:'20px', border:'none', fontWeight:'bold'}}>Añadir 🛒</button>
-          </div>
+      <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', padding: '25px' }}>
+        {["Fritos", "Desayunos", "Arroces", "Bebidas"].map(cat => (
+          <button key={cat} onClick={() => setCategoriaActiva(cat)} style={{ padding: '12px 25px', borderRadius: '30px', border: 'none', background: categoriaActiva === cat ? MONO_NARANJA : 'white', fontWeight:'bold' }}>{cat}</button>
         ))}
+      </div>
+
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', padding: '0 20px'}}>
+        {productosBase.filter(p => p.categoria === categoriaActiva).map(p => {
+          const sel = selecciones[p.id] || {};
+          const cant = cantidades[p.id] || 1;
+          const pActual = p.tamanos ? (sel.tamano?.precio || p.tamanos[0].precio) : (p.precio || 0);
+          return (
+            <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'40px', boxShadow:'0 10px 20px rgba(0,0,0,0.02)', textAlign:'center'}}>
+              <img src={p.imagen} style={{width:'100%', height:'180px', borderRadius:'25px', objectFit:'cover'}} alt={p.nombre} />
+              <h3 style={{margin:'15px 0 5px'}}>{p.nombre}</h3>
+              <p style={{color:MONO_NARANJA, fontWeight:'900', fontSize:'22px'}}>${pActual.toLocaleString()}</p>
+              
+              {p.opciones && (
+                <div style={{display:'flex', gap:'5px', flexWrap:'wrap', justifyContent:'center', mb:'10px'}}>
+                  {p.opciones.map(o => (
+                    <button key={o.nombre} onClick={() => setSelecciones({...selecciones, [p.id]: {...sel, sabor: o.nombre}})} style={{padding:'6px 12px', borderRadius:'10px', border: sel.sabor === o.nombre ? `2px solid ${MONO_NARANJA}` : '1px solid #eee', background: sel.sabor === o.nombre ? '#fff7ed' : 'white'}}>{o.nombre}</button>
+                  ))}
+                </div>
+              )}
+
+              {p.tamanos && (
+                <div style={{display:'flex', gap:'5px', justifyContent:'center', mb:'10px'}}>
+                  {p.tamanos.map(t => (
+                    <button key={t.nombre} onClick={() => setSelecciones({...selecciones, [p.id]: {...sel, tamano: t}})} style={{padding:'6px 12px', borderRadius:'10px', border: sel.tamano?.nombre === t.nombre ? `2px solid ${MONO_NARANJA}` : '1px solid #eee', background: sel.tamano?.nombre === t.nombre ? '#fff7ed' : 'white'}}>{t.nombre}</button>
+                  ))}
+                </div>
+              )}
+
+              <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'15px', mb:'15px'}}>
+                 <button onClick={() => setCantidades({...cantidades, [p.id]: Math.max(1, cant - 1)})}>-</button>
+                 <strong>{cant}</strong>
+                 <button onClick={() => setCantidades({...cantidades, [p.id]: cant + 1})}>+</button>
+              </div>
+              <button onClick={() => agregarAlCarrito(p)} disabled={!p.disponible} style={{width:'100%', padding:'15px', background:MONO_NARANJA, color:'white', borderRadius:'20px', border:'none', fontWeight:'bold'}}>Añadir 🛒</button>
+            </div>
+          );
+        })}
       </div>
 
       {pedido.length > 0 && (
@@ -210,16 +226,17 @@ export default function App() {
           <h2>🛒 Tu Pedido</h2>
           {pedido.map(item => (
             <div key={item.idUnico} style={{ display: 'flex', justifyContent: 'space-between', mb:'10px' }}>
-              <span>{item.cantidad}x {item.nombre}</span>
+              <span>{item.cantidad}x {item.nombre} <small>({item.detalle})</small></span>
               <strong>${item.subtotal.toLocaleString()}</strong>
             </div>
           ))}
-          <div style={{textAlign:'right', mt:'20px', fontSize:'24px', fontWeight:'900'}}>Total: ${pedido.reduce((acc,i)=>acc+i.subtotal,0).toLocaleString()}</div>
-          <button onClick={procesarPedido} style={{width:'100%', mt:'20px', padding:'20px', background: mesa ? MONO_NARANJA : MONO_VERDE, color:'white', borderRadius:'25px', border:'none', fontWeight:'900'}}>{mesa ? "PEDIR A COCINA 👨‍🍳" : "WHATSAPP 📲"}</button>
+          <div style={{textAlign:'right', mt:'20px', fontSize:'32px', fontWeight:'900', color:MONO_NARANJA}}>Total: ${pedido.reduce((acc,i)=>acc+i.subtotal,0).toLocaleString()}</div>
+          <button onClick={procesarPedido} style={{width:'100%', mt:'20px', padding:'25px', background: mesa ? MONO_NARANJA : MONO_VERDE, color:'white', borderRadius:'25px', border:'none', fontWeight:'900', fontSize:'18px'}}>
+            {mesa ? "PEDIR A COCINA 👨‍🍳" : "WHATSAPP 📲"}
+          </button>
         </div>
       )}
 
-      {/* LOGIN MODAL */}
       {mostrarLogin && (
         <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.9)', zIndex:20000, display:'flex', justifyContent:'center', alignItems:'center'}}>
           <div style={{background:'white', padding:'40px', borderRadius:'30px', textAlign:'center'}}>

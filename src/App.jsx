@@ -91,19 +91,7 @@ export default function App() {
   }, []);
 
   // 🕒 LÓGICA DE CIERRE AUTOMÁTICO
-  useEffect(() => {
-    const verificarEstado = () => {
-      const ahora = new Date();
-      const hora = ahora.getHours();
-      const minutos = ahora.getMinutes();
-      const tiempoActualEnMinutos = (hora * 60) + minutos;
-      const estaEnHorario = tiempoActualEnMinutos >= 360 && tiempoActualEnMinutos < 690;
-      setTiendaAbierta(estaEnHorario);
-    };
-    verificarEstado();
-    const t = setInterval(verificarEstado, 30000);
-    return () => clearInterval(t);
-  }, [manualOverride]);
+ 
 
   useEffect(() => {
     const unsubProd = onSnapshot(collection(db, "productos"), (s) => setProductosFB(s.docs.map(d => ({ id: d.id, ...d.data() }))));

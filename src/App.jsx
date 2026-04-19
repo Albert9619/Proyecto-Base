@@ -15,7 +15,9 @@ const MONO_NARANJA = "#f97316";
 const MONO_VERDE = "#16a34a";
 const MONO_TEXTO = "#333333";
 
-// (Datos maestros se mantienen igual...)
+// ==========================================
+// 🔴 DATOS MAESTROS
+// ==========================================
 const productosBase = [
   { id: "1", nombre: "Empanada Crujiente", precio: 1500, categoria: "Fritos", disponible: true, imagen: "/empanada.jpg", opciones: [{ nombre: "Carne", disponible: true }, { nombre: "Pollo", disponible: true }, { nombre: "Arroz", disponible: true }] },
   { id: "2", nombre: "Papa Rellena de la Casa", precio: 2500, categoria: "Fritos", disponible: true, imagen: "/papa-rellena.jpg", opciones: [{ nombre: "Carne", disponible: true }, { nombre: "Huevo", disponible: true }] },
@@ -138,7 +140,6 @@ export default function App() {
 
   // 🚀 LÓGICA DE PEDIDO MEJORADA
   const procesarPedido = async () => {
-    // Solo pedimos datos si NO es mesa (Domicilio)
     if (!mesa && (!nombre || !direccion || !metodoPago)) {
         return alert("Para domicilios necesitamos Nombre, Dirección y Pago");
     }
@@ -176,7 +177,7 @@ export default function App() {
   const vaciarCarrito = () => { if(window.confirm("¿Borrar todo el pedido?")) setPedido([]); };
 
   // ==========================================
-  // 🔴 VISTA ADMINISTRADOR
+  // 🔴 VISTA ADMINISTRADOR (CON MONITOR DE COBRO)
   // ==========================================
   if (isAdmin) {
     return (
@@ -193,6 +194,7 @@ export default function App() {
              <button onClick={() => setTabActiva("mesas")} style={{flex:1, padding:'12px', borderRadius:'10px', border:'none', fontWeight:'bold', cursor:'pointer', background: tabActiva === "mesas" ? 'white' : 'transparent', boxShadow: tabActiva === "mesas" ? '0 2px 5px rgba(0,0,0,0.1)' : 'none'}}>🪑 Mesas QR</button>
           </div>
 
+          {/* TAB: PRODUCTOS */}
           {tabActiva === "productos" && (
             <>
               <div style={{background:'white', padding:'20px', borderRadius:'20px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center', border:`2px solid ${MONO_VERDE}`}}>
@@ -213,40 +215,55 @@ export default function App() {
             </>
           )}
 
+          {/* TAB: PEDIDOS (MONITOR DE COBRO) */}
           {tabActiva === "pedidos" && (
             <div style={{display:'grid', gap:'15px'}}>
               {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos pendientes 🐒💤</div> ) : (
-                pedidosFB.map(p => (
-                  <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'20px', borderLeft:`10px solid ${p.ubicacion?.includes('MESA') ? '#f97316' : '#3b82f6'}`, boxShadow:'0 4px 6px rgba(0,0,0,0.05)'}}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-                      <div><h3 style={{margin:0}}>{p.ubicacion}</h3><p style={{margin:0, fontSize:'14px', color:'#666'}}>{p.hora} - {p.nombre}</p></div>
-                      <button onClick={() => { if(window.confirm("¿Orden lista?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
+                pedidosFB.map(p => {
+                  const esMesa = p.ubicacion?.includes('MESA');
+                  return (
+                    <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'20px', borderLeft:`12px solid ${esMesa ? MONO_NARANJA : MONO_VERDE}`, boxShadow:'0 4px 6px rgba(0,0,0,0.05)'}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                        <div>
+                          <h2 style={{margin:0, color: esMesa ? MONO_NARANJA : MONO_VERDE}}>{p.ubicacion}</h2>
+                          <p style={{margin:0, fontSize:'14px', color:'#666'}}>{p.hora} - {p.nombre}</p>
+                        </div>
+                        <button onClick={() => { if(window.confirm("¿Orden despachada y cobrada?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_TEXTO, color:'white', border:'none', padding:'12px 20px', borderRadius:'12px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
+                      </div>
+                      <div style={{background:'#f8fafc', padding:'15px', borderRadius:'15px', marginTop:'15px'}}>
+                        {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'16px', marginBottom:'5px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small style={{color:'#666'}}>({item.detalle})</small></div> ))}
+                        {p.salsas?.length > 0 && <div style={{marginTop:'10px', fontSize:'13px', color:'#555'}}>🍯 Salsas: {p.salsas.join(', ')}</div>}
+                      </div>
+
+                      {/* SECCIÓN DE CUENTA / COBRO */}
+                      <div style={{marginTop:'20px', display:'flex', justifyContent:'space-between', alignItems:'center', background: esMesa ? '#fff7ed' : '#f0fdf4', padding:'15px', borderRadius:'15px', border: `1px dashed ${esMesa ? MONO_NARANJA : MONO_VERDE}`}}>
+                          <div>
+                              <span style={{fontSize:'12px', fontWeight:'bold', display:'block', color:'#666'}}>PAGO: {p.pago}</span>
+                              <span style={{fontSize:'18px', fontWeight:'900'}}>TOTAL CUENTA:</span>
+                          </div>
+                          <strong style={{fontSize:'32px', color: MONO_TEXTO}}>${p.total?.toLocaleString()}</strong>
+                      </div>
                     </div>
-                    <div style={{background:'#f8fafc', padding:'12px', borderRadius:'12px', marginTop:'15px'}}>
-                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px', marginBottom:'4px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
-                      <div style={{marginTop:'8px', fontSize:'13px', borderTop:'1px solid #eee', paddingTop:'5px'}}><strong>🍯 Salsas:</strong> {p.salsas?.join(', ') || 'Ninguna'}</div>
-                    </div>
-                    <div style={{marginTop:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <strong style={{fontSize:'18px'}}>${p.total?.toLocaleString()}</strong>
-                        <span style={{fontSize:'12px', background:'#eee', padding:'4px 10px', borderRadius:'20px'}}>{p.pago}</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}
 
+          {/* TAB: GENERADOR DE QR REPARADO */}
           {tabActiva === "mesas" && (
             <div style={{background:'white', padding:'30px', borderRadius:'30px'}}>
               <h2 style={{marginTop:0}}>Generador QR Dinámico 🏁</h2>
               <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'20px'}}>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
-                  const urlMesa = `${window.location.origin}/?mesa=${n}`;
-                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(urlMesa)}`;
+                  const base = window.location.origin; // Detecta automáticamente el link de Vercel
+                  const urlMesa = `${base}/?mesa=${n}`;
+                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(urlMesa)}`;
                   return (
-                    <div key={n} style={{border:'2px solid #eee', borderRadius:'20px', padding:'15px', textAlign:'center'}}>
+                    <div key={n} style={{border:'2px solid #eee', borderRadius:'20px', padding:'15px', textAlign:'center', background:'white'}}>
+                      <div style={{marginBottom:'10px', fontWeight:'900', color:MONO_NARANJA}}>MESA {n}</div>
                       <img src={qrUrl} alt={`Mesa ${n}`} style={{width:'100%', borderRadius:'10px'}} />
-                      <div style={{marginTop:'10px', fontWeight:'900', color:MONO_NARANJA}}>MESA {n}</div>
+                      <a href={qrUrl} target="_blank" rel="noreferrer" style={{fontSize:'11px', color:'#3b82f6', textDecoration:'none', marginTop:'10px', display:'block'}}>Abrir Imagen</a>
                     </div>
                   );
                 })}
@@ -267,7 +284,6 @@ export default function App() {
       
       {notificacion && <div style={{position:'fixed', top:'20px', left:'50%', transform:'translateX(-50%)', background: MONO_VERDE, color:'white', padding:'15px 30px', borderRadius:'50px', zIndex: 10000, fontWeight:'bold', boxShadow:'0 5px 15px rgba(0,0,0,0.1)'}}>{notificacion}</div>}
       
-      {/* Modals Login y Agradecimiento se mantienen igual */}
       {mostrarLogin && (
         <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.85)', zIndex:40000, display:'flex', justifyContent:'center', alignItems:'center'}}>
           <div style={{background:'white', padding:'30px', borderRadius:'30px', textAlign:'center', width:'90%', maxWidth:'350px'}}>
@@ -298,7 +314,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* Grid de Productos */}
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '30px', padding: '0 20px', maxWidth:'1200px', margin:'0 auto'}}>
         {productosMostrar.filter(p => p.categoria === categoriaActiva).map(p => {
             const sel = selecciones[p.id] || {};

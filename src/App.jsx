@@ -58,7 +58,7 @@ export default function App() {
   const [tabActiva, setTabActiva] = useState("productos"); 
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [manualOverride, setManualOverride] = useState(true); // Tú mandas, no el reloj
+  const [manualOverride, setManualOverride] = useState(true); 
   const [categoriaActiva, setCategoriaActiva] = useState("Fritos");
   const [productosFB, setProductosFB] = useState([]);
   const [extrasFB, setExtrasFB] = useState([]);
@@ -97,7 +97,7 @@ export default function App() {
     return () => { unsubProd(); unsubExtras(); unsubSalsas(); unsubTienda(); unsubPedidos(); };
   }, []);
 
-  // Persistencia local del pedido
+  // Persistencia local
   useEffect(() => {
     const p = localStorage.getItem("pedido_mono_storage");
     if (p) setPedido(JSON.parse(p));
@@ -141,28 +141,43 @@ export default function App() {
     setTimeout(() => setNotificacion(""), 2000);
   };
 
-  const enviarWhatsApp = async () => {
+  // 🚀 FUNCIÓN DE PROCESAMIENTO INTELIGENTE
+  const procesarPedido = async () => {
     if (!nombre || !direccion || !metodoPago) return alert("Faltan datos");
+    
     const tComida = pedido.reduce((acc, i) => acc + i.subtotal, 0);
     const tFinal = tComida + (mesa ? 0 : (tComida < 8000 ? 2000 : 0));
     const horaActual = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
-    // Guardar en Monitor de Firebase
-    await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
-      nombre, ubicacion: mesa ? `MESA ${mesa}` : direccion, productos: pedido,
-      salsas: salsasElegidas, total: tFinal, pago: metodoPago, timestamp: Date.now(), hora: horaActual, notas
+    // 1. Guardar en Monitor de Firebase (Esto sucede para ambos casos)
+    const idPedido = `ORD-${Date.now()}`;
+    await setDoc(doc(db, "pedidos", idPedido), {
+      nombre, 
+      ubicacion: mesa ? `MESA ${mesa}` : direccion, 
+      productos: pedido,
+      salsas: salsasElegidas, 
+      total: tFinal, 
+      pago: metodoPago, 
+      timestamp: Date.now(), 
+      hora: horaActual, 
+      notas
     });
 
-    const lista = pedido.map(i => `• ${i.cantidad}x ${i.nombre} (${i.detalle})`).join('\n');
-    const msg = `*${mesa ? `🪑 MESA ${mesa}` : '🛵 DOMICILIO'}*\n👤: ${nombre}\n🧾:\n${lista}\n💰: $${tFinal.toLocaleString()}\n💳: ${metodoPago}\n📝: ${notas}`;
-    window.open(`https://wa.me/573148686455?text=${encodeURIComponent(msg)}`);
-    setAgradecimiento(true);
-    setPedido([]);
+    // 2. Lógica de salida
+    if (mesa) {
+      // Flujo Local: Solo confirmación en pantalla
+      setAgradecimiento(true);
+      setPedido([]);
+    } else {
+      // Flujo Domicilio: Abrir WhatsApp para logística
+      const lista = pedido.map(i => `• ${i.cantidad}x ${i.nombre} (${i.detalle})`).join('\n');
+      const msg = `*🛵 DOMICILIO*\n👤: ${nombre}\n🧾:\n${lista}\n💰: $${tFinal.toLocaleString()}\n💳: ${metodoPago}\n📝: ${notas}`;
+      window.open(`https://wa.me/573148686455?text=${encodeURIComponent(msg)}`);
+      setAgradecimiento(true);
+      setPedido([]);
+    }
   };
 
-  // ==========================================
-  // 🔴 VISTA ADMINISTRADOR (3 PESTAÑAS)
-  // ==========================================
   if (isAdmin) {
     return (
       <div style={{padding: '20px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif'}}>
@@ -178,7 +193,6 @@ export default function App() {
              <button onClick={() => setTabActiva("mesas")} style={{flex:1, padding:'12px', borderRadius:'10px', border:'none', fontWeight:'bold', cursor:'pointer', background: tabActiva === "mesas" ? 'white' : 'transparent', boxShadow: tabActiva === "mesas" ? '0 2px 5px rgba(0,0,0,0.1)' : 'none'}}>🪑 Mesas QR</button>
           </div>
 
-          {/* TAB: PRODUCTOS */}
           {tabActiva === "productos" && (
             <>
               <div style={{background:'white', padding:'20px', borderRadius:'20px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center', border:`2px solid ${MONO_VERDE}`}}>
@@ -199,34 +213,26 @@ export default function App() {
             </>
           )}
 
-          {/* TAB: PEDIDOS (MONITOR DE COCINA) */}
           {tabActiva === "pedidos" && (
             <div style={{display:'grid', gap:'15px'}}>
-              {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos pendientes 🐒💤</div> ) : (
+              {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos 🐒💤</div> ) : (
                 pedidosFB.map(p => (
                   <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'20px', borderLeft:`10px solid ${p.ubicacion?.includes('MESA') ? '#f97316' : '#3b82f6'}`, boxShadow:'0 4px 6px rgba(0,0,0,0.05)'}}>
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                       <div><h3 style={{margin:0}}>{p.ubicacion}</h3><p style={{margin:0, fontSize:'14px', color:'#666'}}>{p.hora} - {p.nombre}</p></div>
-                      <button onClick={() => { if(window.confirm("¿Orden lista?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
+                      <button onClick={() => { if(window.confirm("¿Listo?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
                     </div>
                     <div style={{background:'#f8fafc', padding:'12px', borderRadius:'12px', marginTop:'15px'}}>
-                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px', marginBottom:'4px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
-                      <div style={{marginTop:'8px', fontSize:'13px', borderTop:'1px solid #eee', paddingTop:'5px'}}>
-                        <strong>🍯 Salsas:</strong> {p.salsas?.join(', ') || 'Ninguna'}
-                      </div>
+                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
                     </div>
-                    <div style={{marginTop:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                        <strong style={{fontSize:'18px'}}>${p.total?.toLocaleString()}</strong>
-                        <span style={{fontSize:'12px', background:'#eee', padding:'4px 10px', borderRadius:'20px'}}>{p.pago}</span>
-                    </div>
-                    {p.notas && <div style={{marginTop:'8px', color:MONO_NARANJA, fontSize:'13px'}}>📝 <em>"{p.notas}"</em></div>}
+                    <div style={{marginTop:'10px', fontWeight:'bold'}}>${p.total?.toLocaleString()} | {p.pago}</div>
+                    {p.notas && <div style={{marginTop:'5px', color:MONO_NARANJA, fontSize:'12px'}}>📝 {p.notas}</div>}
                   </div>
                 ))
               )}
             </div>
           )}
 
-          {/* TAB: GENERADOR DE QR */}
           {tabActiva === "mesas" && (
             <div style={{background:'white', padding:'30px', borderRadius:'30px'}}>
               <h2 style={{marginTop:0}}>Generador QR para Mesas 🏁</h2>
@@ -249,9 +255,6 @@ export default function App() {
     );
   }
 
-  // ==========================================
-  // 🟡 VISTA CLIENTE (CATÁLOGO)
-  // ==========================================
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#fffcf5', minHeight: '100vh', paddingBottom: '120px', color: MONO_TEXTO }}>
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
@@ -271,7 +274,7 @@ export default function App() {
 
       {agradecimiento && (
         <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:MONO_NARANJA, zIndex:30000, display:'flex', justifyContent:'center', alignItems:'center', textAlign:'center', color:'white', padding:'20px'}}>
-          <div><span style={{fontSize:'80px'}}>🐒</span><h2>¡Pedido Procesado!</h2><button onClick={() => setAgradecimiento(false)} style={{marginTop:'30px', background:'white', color:MONO_NARANJA, border:'none', padding:'15px 40px', borderRadius:'50px', fontWeight:'900', cursor:'pointer'}}>Volver</button></div>
+          <div><span style={{fontSize:'80px'}}>🐒</span><h2>¡Pedido Recibido!</h2><p>El Mono ya está trabajando en tu orden.</p><button onClick={() => setAgradecimiento(false)} style={{marginTop:'30px', background:'white', color:MONO_NARANJA, border:'none', padding:'15px 40px', borderRadius:'50px', fontWeight:'900', cursor:'pointer'}}>Volver al Menú</button></div>
         </div>
       )}
 
@@ -361,7 +364,23 @@ export default function App() {
             <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={{ padding: '18px', borderRadius: '15px', border: '1px solid #ddd', fontWeight: 'bold' }}>
               <option value="">-- ¿Cómo pagas? --</option><option value="Efectivo">Efectivo</option><option value="Nequi">Nequi</option>
             </select>
-            <button onClick={enviarWhatsApp} style={{ background: MONO_VERDE, color: 'white', padding: '22px', borderRadius: '25px', fontWeight: '900', fontSize: '20px', cursor:'pointer' }}>WhatsApp 📲</button>
+            
+            {/* BOTÓN INTELIGENTE: Cambia color y texto según la ubicación */}
+            <button 
+              onClick={procesarPedido} 
+              style={{ 
+                background: mesa ? MONO_NARANJA : MONO_VERDE, 
+                color: 'white', 
+                padding: '22px', 
+                borderRadius: '25px', 
+                fontWeight: '900', 
+                fontSize: '20px', 
+                cursor:'pointer',
+                border: 'none'
+              }}
+            >
+              {mesa ? `PEDIR A COCINA 👨‍🍳` : `WhatsApp 📲`}
+            </button>
           </div>
         </div>
       )}

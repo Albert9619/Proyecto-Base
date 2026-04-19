@@ -58,7 +58,7 @@ export default function App() {
   const [tabActiva, setTabActiva] = useState("productos"); 
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [manualOverride, setManualOverride] = useState(true); 
+  const [manualOverride, setManualOverride] = useState(true); // Tú mandas, no el reloj
   const [categoriaActiva, setCategoriaActiva] = useState("Fritos");
   const [productosFB, setProductosFB] = useState([]);
   const [extrasFB, setExtrasFB] = useState([]);
@@ -79,12 +79,14 @@ export default function App() {
   const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
   const tipoArrozHoy = ["lunes", "miércoles", "viernes"].includes(hoy) ? "Pollo" : "Cerdo";
 
+  // Detector de Mesa por URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mesaURL = params.get('mesa');
     if (mesaURL) { setMesa(mesaURL); setDireccion(`Mesa ${mesaURL}`); }
   }, []);
 
+  // Conexión Real-Time Firebase
   useEffect(() => {
     const unsubProd = onSnapshot(collection(db, "productos"), (s) => setProductosFB(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubExtras = onSnapshot(collection(db, "extrasArroz"), (s) => setExtrasFB(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -95,6 +97,7 @@ export default function App() {
     return () => { unsubProd(); unsubExtras(); unsubSalsas(); unsubTienda(); unsubPedidos(); };
   }, []);
 
+  // Persistencia local del pedido
   useEffect(() => {
     const p = localStorage.getItem("pedido_mono_storage");
     if (p) setPedido(JSON.parse(p));
@@ -142,11 +145,12 @@ export default function App() {
     if (!nombre || !direccion || !metodoPago) return alert("Faltan datos");
     const tComida = pedido.reduce((acc, i) => acc + i.subtotal, 0);
     const tFinal = tComida + (mesa ? 0 : (tComida < 8000 ? 2000 : 0));
-    const hora = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const horaActual = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
+    // Guardar en Monitor de Firebase
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
       nombre, ubicacion: mesa ? `MESA ${mesa}` : direccion, productos: pedido,
-      salsas: salsasElegidas, total: tFinal, pago: metodoPago, timestamp: Date.now(), hora, notas
+      salsas: salsasElegidas, total: tFinal, pago: metodoPago, timestamp: Date.now(), hora: horaActual, notas
     });
 
     const lista = pedido.map(i => `• ${i.cantidad}x ${i.nombre} (${i.detalle})`).join('\n');
@@ -156,20 +160,25 @@ export default function App() {
     setPedido([]);
   };
 
+  // ==========================================
+  // 🔴 VISTA ADMINISTRADOR (3 PESTAÑAS)
+  // ==========================================
   if (isAdmin) {
     return (
       <div style={{padding: '20px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif'}}>
         <div style={{maxWidth:'850px', margin:'0 auto'}}>
           <div style={{display:'flex', justifyContent:'space-between', marginBottom:'25px', alignItems: 'center'}}>
-            <h1 style={{color: MONO_NARANJA}}>Admin 🐒</h1>
+            <h1 style={{color: MONO_NARANJA}}>Panel Mono 🐒</h1>
             <button onClick={() => setIsAdmin(false)} style={{padding:'10px 15px', borderRadius:'10px', background:MONO_TEXTO, color:'white', border:'none', cursor:'pointer'}}>Cerrar</button>
           </div>
 
           <div style={{display:'flex', gap:'10px', marginBottom:'25px', background:'#e2e8f0', padding:'5px', borderRadius:'15px'}}>
              <button onClick={() => setTabActiva("productos")} style={{flex:1, padding:'12px', borderRadius:'10px', border:'none', fontWeight:'bold', cursor:'pointer', background: tabActiva === "productos" ? 'white' : 'transparent', boxShadow: tabActiva === "productos" ? '0 2px 5px rgba(0,0,0,0.1)' : 'none'}}>📦 Productos</button>
              <button onClick={() => setTabActiva("pedidos")} style={{flex:1, padding:'12px', borderRadius:'10px', border:'none', fontWeight:'bold', cursor:'pointer', background: tabActiva === "pedidos" ? 'white' : 'transparent', boxShadow: tabActiva === "pedidos" ? '0 2px 5px rgba(0,0,0,0.1)' : 'none'}}>📝 Pedidos ({pedidosFB.length})</button>
+             <button onClick={() => setTabActiva("mesas")} style={{flex:1, padding:'12px', borderRadius:'10px', border:'none', fontWeight:'bold', cursor:'pointer', background: tabActiva === "mesas" ? 'white' : 'transparent', boxShadow: tabActiva === "mesas" ? '0 2px 5px rgba(0,0,0,0.1)' : 'none'}}>🪑 Mesas QR</button>
           </div>
 
+          {/* TAB: PRODUCTOS */}
           {tabActiva === "productos" && (
             <>
               <div style={{background:'white', padding:'20px', borderRadius:'20px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center', border:`2px solid ${MONO_VERDE}`}}>
@@ -190,23 +199,49 @@ export default function App() {
             </>
           )}
 
+          {/* TAB: PEDIDOS (MONITOR DE COCINA) */}
           {tabActiva === "pedidos" && (
             <div style={{display:'grid', gap:'15px'}}>
-              {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos 🐒💤</div> ) : (
+              {pedidosFB.length === 0 ? ( <div style={{textAlign:'center', padding:'40px', background:'white', borderRadius:'20px'}}>No hay pedidos pendientes 🐒💤</div> ) : (
                 pedidosFB.map(p => (
                   <div key={p.id} style={{background:'white', padding:'20px', borderRadius:'20px', borderLeft:`10px solid ${p.ubicacion?.includes('MESA') ? '#f97316' : '#3b82f6'}`, boxShadow:'0 4px 6px rgba(0,0,0,0.05)'}}>
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
                       <div><h3 style={{margin:0}}>{p.ubicacion}</h3><p style={{margin:0, fontSize:'14px', color:'#666'}}>{p.hora} - {p.nombre}</p></div>
-                      <button onClick={() => { if(window.confirm("¿Listo?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
+                      <button onClick={() => { if(window.confirm("¿Orden lista?")) deleteDoc(doc(db, "pedidos", p.id)) }} style={{background:MONO_VERDE, color:'white', border:'none', padding:'10px', borderRadius:'10px', fontWeight:'bold', cursor:'pointer'}}>LISTO ✅</button>
                     </div>
                     <div style={{background:'#f8fafc', padding:'12px', borderRadius:'12px', marginTop:'15px'}}>
-                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
+                      {p.productos?.map((item, idx) => ( <div key={idx} style={{fontSize:'14px', marginBottom:'4px'}}>• <strong>{item.cantidad}x</strong> {item.nombre} <small>({item.detalle})</small></div> ))}
+                      <div style={{marginTop:'8px', fontSize:'13px', borderTop:'1px solid #eee', paddingTop:'5px'}}>
+                        <strong>🍯 Salsas:</strong> {p.salsas?.join(', ') || 'Ninguna'}
+                      </div>
                     </div>
-                    <div style={{marginTop:'10px', fontWeight:'bold'}}>${p.total?.toLocaleString()} | {p.pago}</div>
-                    {p.notas && <div style={{marginTop:'5px', color:MONO_NARANJA, fontSize:'12px'}}>📝 {p.notas}</div>}
+                    <div style={{marginTop:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                        <strong style={{fontSize:'18px'}}>${p.total?.toLocaleString()}</strong>
+                        <span style={{fontSize:'12px', background:'#eee', padding:'4px 10px', borderRadius:'20px'}}>{p.pago}</span>
+                    </div>
+                    {p.notas && <div style={{marginTop:'8px', color:MONO_NARANJA, fontSize:'13px'}}>📝 <em>"{p.notas}"</em></div>}
                   </div>
                 ))
               )}
+            </div>
+          )}
+
+          {/* TAB: GENERADOR DE QR */}
+          {tabActiva === "mesas" && (
+            <div style={{background:'white', padding:'30px', borderRadius:'30px'}}>
+              <h2 style={{marginTop:0}}>Generador QR para Mesas 🏁</h2>
+              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'20px'}}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
+                  const urlMesa = `${window.location.origin}/?mesa=${n}`;
+                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(urlMesa)}`;
+                  return (
+                    <div key={n} style={{border:'2px solid #eee', borderRadius:'20px', padding:'15px', textAlign:'center'}}>
+                      <img src={qrUrl} alt={`Mesa ${n}`} style={{width:'100%', borderRadius:'10px'}} />
+                      <div style={{marginTop:'10px', fontWeight:'900', color:MONO_NARANJA}}>MESA {n}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -214,15 +249,20 @@ export default function App() {
     );
   }
 
+  // ==========================================
+  // 🟡 VISTA CLIENTE (CATÁLOGO)
+  // ==========================================
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#fffcf5', minHeight: '100vh', paddingBottom: '120px', color: MONO_TEXTO }}>
-      {notificacion && <div style={{position:'fixed', top:'20px', left:'50%', transform:'translateX(-50%)', background: MONO_VERDE, color:'white', padding:'15px 30px', borderRadius:'50px', zIndex: 10000, fontWeight:'bold'}}>{notificacion}</div>}
+      <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+      
+      {notificacion && <div style={{position:'fixed', top:'20px', left:'50%', transform:'translateX(-50%)', background: MONO_VERDE, color:'white', padding:'15px 30px', borderRadius:'50px', zIndex: 10000, fontWeight:'bold', boxShadow:'0 5px 15px rgba(0,0,0,0.1)'}}>{notificacion}</div>}
       
       {mostrarLogin && (
         <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.85)', zIndex:40000, display:'flex', justifyContent:'center', alignItems:'center'}}>
           <div style={{background:'white', padding:'30px', borderRadius:'30px', textAlign:'center', width:'90%', maxWidth:'350px'}}>
             <h3 style={{marginBottom:'20px'}}>Acceso Admin</h3>
-            <input type="password" placeholder="PIN" onChange={(e) => setPinInput(e.target.value)} style={{width:'100%', padding:'15px', borderRadius:'15px', border:'1px solid #ddd', marginBottom:'15px', textAlign:'center'}} />
+            <input type="password" placeholder="PIN" onChange={(e) => setPinInput(e.target.value)} style={{width:'100%', padding:'15px', borderRadius:'15px', border:'1px solid #ddd', marginBottom:'15px', textAlign:'center', fontSize:'18px'}} />
             <button onClick={() => { if(pinInput === "mono2026") { setIsAdmin(true); setMostrarLogin(false); } else { alert("PIN Incorrecto"); } }} style={{width:'100%', background:MONO_NARANJA, color:'white', border:'none', padding:'15px', borderRadius:'15px', fontWeight:'900', cursor:'pointer'}}>Entrar</button>
             <button onClick={() => setMostrarLogin(false)} style={{marginTop:'15px', background:'none', border:'none', color:'#999', cursor:'pointer'}}>Cancelar</button>
           </div>
@@ -239,10 +279,13 @@ export default function App() {
         <img src="/logo-fritos-el-mono.jpg" alt="Logo" style={{width: '100%', height: '220px', objectFit: 'cover'}} />
         <div style={{padding: '25px 0'}}>
             <h1 onClick={() => setMostrarLogin(true)} style={{color: MONO_NARANJA, margin:'0', fontSize: '2.5rem', fontWeight: '900', cursor:'pointer'}}>Fritos El Mono 🐒</h1>
+            <div style={{display:'inline-block', marginTop: '10px', background: '#fff7ed', padding: '6px 20px', borderRadius: '20px', fontWeight: 'bold'}}>
+              Arroz de hoy: {tipoArrozHoy}
+            </div>
         </div>
       </header>
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '40px', overflowX: 'auto', padding: '0 20px' }}>
+      <div className="no-scrollbar" style={{ display: 'flex', gap: '12px', marginBottom: '40px', overflowX: 'auto', padding: '0 20px' }}>
         {["Fritos", "Desayunos", "Arroces", "Bebidas"].map(cat => (
           <button key={cat} onClick={() => setCategoriaActiva(cat)} style={{ padding: '14px 28px', borderRadius: '30px', border: 'none', backgroundColor: categoriaActiva === cat ? MONO_NARANJA : 'white', color: categoriaActiva === cat ? 'white' : MONO_TEXTO, fontWeight: 'bold', flexShrink: 0, boxShadow:'0 4px 10px rgba(0,0,0,0.05)', cursor:'pointer' }}>{cat}</button>
         ))}
@@ -280,7 +323,7 @@ export default function App() {
                    <span style={{fontWeight:'900', fontSize:'20px'}}>{cant}</span>
                    <button onClick={() => setCantidades({...cantidades, [p.id]: cant + 1})} style={{width:'40px', height:'40px', borderRadius:'50%', background:MONO_NARANJA, color:'white', border:'none', cursor:'pointer'}}>+</button>
                 </div>
-                <button onClick={() => agregarAlCarrito(p)} disabled={p.disponible === false} style={{background: p.disponible !== false ? MONO_NARANJA : '#ccc', color:'white', border:'none', padding:'18px', borderRadius:'20px', fontWeight:'900', cursor:'pointer', width:'100%'}}>{p.disponible === false ? 'AGOTADO' : 'Añadir 🛒'}</button>
+                <button onClick={() => agregarAlCarrito(p)} disabled={p.disponible === false || !manualOverride} style={{background: (p.disponible !== false && manualOverride) ? MONO_NARANJA : '#ccc', color:'white', border:'none', padding:'18px', borderRadius:'20px', fontWeight:'900', cursor:'pointer', width:'100%'}}>{p.disponible === false ? 'AGOTADO' : 'Añadir 🛒'}</button>
               </div>
             );
         })}
@@ -295,6 +338,15 @@ export default function App() {
               <strong style={{fontSize: '18px'}}>${item.subtotal.toLocaleString()}</strong>
             </div>
           ))}
+
+          <div style={{ marginTop: '30px', background: '#f8fafc', padding: '25px', borderRadius: '25px' }}>
+            <h3 style={{margin: '0 0 15px 0'}}>Salsas:</h3>
+            <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+              {salsasMostrar.filter(s => s.disponible).map(s => (
+                <button key={s.id} onClick={() => setSalsasElegidas(salsasElegidas.includes(s.nombre) ? salsasElegidas.filter(x => x !== s.nombre) : [...salsasElegidas, s.nombre])} style={{padding:'10px 15px', borderRadius:'12px', border: salsasElegidas.includes(s.nombre) ? `2px solid ${MONO_NARANJA}` : '1px solid #ddd', background: salsasElegidas.includes(s.nombre) ? '#fff7ed' : 'white', cursor:'pointer', fontWeight:'bold'}}>{s.nombre}</button>
+              ))}
+            </div>
+          </div>
 
           <div style={{ marginTop: '20px', textAlign: 'right' }}>
              <p>Subtotal: <strong>${pedido.reduce((acc, i) => acc + i.subtotal, 0).toLocaleString()}</strong></p>

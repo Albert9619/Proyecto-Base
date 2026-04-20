@@ -271,42 +271,47 @@ export default function App() {
             )}
 
             {/* ✅ NUEVA PESTAÑA QRS */}
-            {tabActiva === "qrs" && (
-              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
-                <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
-                <p>Verifica que la dirección de tu app sea correcta:</p>
-                <input 
-                  type="text" 
-                  value={baseUrl} 
-                  onChange={(e) => setBaseUrl(e.target.value)} 
-                  style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '1px solid #ddd', marginBottom: '20px', fontSize: '16px' }} 
-                />
-                <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>🖨️ Imprimir Códigos</button>
-                
-                <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                    <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
-                      <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>MESA {n}</strong>
-                      <img 
-                        src={`https://chart.googleapis.com/chart?cht=qr&chs=250x250&chl=${encodeURIComponent(baseUrl + '?mesa=' + n)}`} 
-                        alt={`QR Mesa ${n}`} 
-                        style={{ width: '100%', maxWidth: '180px' }} 
-                      />
-                      <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>Fritos El Mono 🐒</p>
-                    </div>
-                  ))}
-                  <div style={{ textAlign: 'center', padding: '20px', border: '2px solid #eee', borderRadius: '25px', background: '#fffcf5' }}>
-                    <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>DOMICILIOS</strong>
-                    <img 
-                      src={`https://chart.googleapis.com/chart?cht=qr&chs=250x250&chl=${encodeURIComponent(baseUrl)}`} 
-                      alt="QR Domicilio" 
-                      style={{ width: '100%', maxWidth: '180px' }} 
-                    />
-                    <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>¡Pide desde casa! 🛵</p>
-                  </div>
-                </div>
-              </div>
-            )}
+           {tabActiva === "qrs" && (
+  <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
+    <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
+    <p>Verifica que la dirección de tu app sea correcta (asegúrate de que incluya el https://):</p>
+    <input 
+      type="text" 
+      value={baseUrl} 
+      onChange={(e) => setBaseUrl(e.target.value)} 
+      placeholder="https://tu-app.web.app"
+      style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '2px solid #ddd', marginBottom: '20px', fontSize: '16px' }} 
+    />
+    <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>🖨️ Imprimir Códigos</button>
+    
+    <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
+        // Aseguramos que la URL sea válida antes de mandarla a la API
+        const qrUrl = `${baseUrl.replace(/\/$/, "")}?mesa=${n}`;
+        return (
+          <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
+            <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>MESA {n}</strong>
+            <img 
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} 
+              alt={`QR Mesa ${n}`} 
+              style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} 
+            />
+            <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>Fritos El Mono 🐒</p>
+          </div>
+        );
+      })}
+      <div style={{ textAlign: 'center', padding: '20px', border: '2px solid #eee', borderRadius: '25px', background: '#fffcf5' }}>
+        <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>DOMICILIOS</strong>
+        <img 
+          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(baseUrl)}`} 
+          alt="QR Domicilio" 
+          style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} 
+        />
+        <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>¡Pide desde casa! 🛵</p>
+      </div>
+    </div>
+  </div>
+)}
 
             {tabActiva === "caja" && (
               <div style={{ background: 'white', padding: '40px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>

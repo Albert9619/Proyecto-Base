@@ -36,7 +36,6 @@ const pulseStyle = `
   .card-hover:hover { transform: translateY(-5px); transition: 0.3s; }
   .scroll-hide::-webkit-scrollbar { display: none; }
 
-  /* Estilos para Impresión de QRs */
   @media print {
     .no-print { display: none !important; }
     .print-area { display: block !important; padding: 0 !important; }
@@ -66,6 +65,13 @@ const ESTADO_LABEL = {
   pendiente:  { emoji: "🟡", texto: "En cola..." },
   preparando: { emoji: "👨‍🍳", texto: "Preparando" },
   entregado:  { emoji: "✅", texto: "¡Listo!" },
+};
+
+// ✅ HELPER PARA RENDERIZADO SEGURO (Evita Error #31)
+const safeText = (val) => {
+  if (val === null || val === undefined) return "";
+  if (typeof val === 'object') return val.nombre || "Error de dato";
+  return String(val);
 };
 
 export default function App() {
@@ -101,7 +107,6 @@ export default function App() {
                    numPendientes <= 8 ? { t: "Cocina con Flujo", c: MONO_AMARILLO, m: "15-20 min" } :
                    { t: "Cocina a Tope", c: MONO_ROJO, m: "25-30 min" };
 
-  // ✅ SINCRONIZACIÓN CORREGIDA (Evita Error #31)
   useEffect(() => {
     const q = query(collection(db, "productos"), orderBy("categoria", "asc"));
     return onSnapshot(q, (s) => {
@@ -155,11 +160,10 @@ export default function App() {
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
-    // Si tiene precio en base de datos > 0, usamos ese. Si no, usamos el del tamaño.
     const precioBase = p.precio > 0 ? p.precio : (sel.tamano ? sel.tamano.p : 0);
     const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
     const idUnico = Date.now();
-    setPedido(prev => [...prev, { idUnico, nombre: String(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
+    setPedido(prev => [...prev, { idUnico, nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
   };
 
   const eliminarDelCarrito = (idUnico) => {
@@ -174,7 +178,7 @@ export default function App() {
     const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
     
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
-      nombre: String(nombre),
+      nombre: safeText(nombre),
       ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
       productos: productosConNotas,
       total, timestamp: Date.now(),
@@ -252,7 +256,7 @@ export default function App() {
                     <tbody>
                       {menuFB.map(p => (
                         <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '15px', fontWeight: 'bold' }}>{String(p.nombre)}</td>
+                          <td style={{ padding: '15px', fontWeight: 'bold' }}>{safeText(p.nombre)}</td>
                           <td style={{ padding: '15px' }}>
                             <input 
                               type="number" 
@@ -282,14 +286,14 @@ export default function App() {
                 {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
                   <div key={p.id} className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} style={{ background: 'white', padding: '25px', borderRadius: '35px', border: p.estado === 'pendiente' ? `4px solid ${MONO_AMARILLO}` : `4px solid ${MONO_AZUL}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
-                      <span style={{ fontSize: '26px', fontWeight: '900' }}>{p.ubicacion}</span>
-                      <span style={{ fontSize: '18px' }}>{p.hora}</span>
+                      <span style={{ fontSize: '26px', fontWeight: '900' }}>{safeText(p.ubicacion)}</span>
+                      <span style={{ fontSize: '18px' }}>{safeText(p.hora)}</span>
                     </div>
                     {p.productos.map((it, i) => (
                       <div key={i} style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {String(it.nombre)}</div>
-                        {it.detalle && <div style={{ color: '#666', fontSize: '15px' }}>{String(it.detalle)}</div>}
-                        {it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold', fontSize: '16px' }}>📝 {it.nota}</div>}
+                        <div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {safeText(it.nombre)}</div>
+                        {it.detalle && <div style={{ color: '#666', fontSize: '15px' }}>{safeText(it.detalle)}</div>}
+                        {it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold', fontSize: '16px' }}>📝 {safeText(it.nota)}</div>}
                       </div>
                     ))}
                     <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
@@ -367,12 +371,12 @@ export default function App() {
           <p>El sabor más crocante de Carepa 🐒</p>
           <div style={{ position: 'absolute', bottom: '-25px', background: 'white', padding: '12px 25px', borderRadius: '50px', boxShadow: '0 5px 20px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: workload.c }}></div>
-            <span style={{ color: MONO_TEXTO, fontWeight: 'bold' }}>{workload.t} · {workload.m} aprox.</span>
+            <span style={{ color: MONO_TEXTO, fontWeight: 'bold' }}>{safeText(workload.t)} · {safeText(workload.m)} aprox.</span>
           </div>
         </header>
 
         <div style={{ textAlign: 'center', marginTop: '50px' }}>
-          <div style={{ background: '#fff7ed', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', display: 'inline-block', color: MONO_NARANJA }}>Arroz Hoy: {tipoArrozHoy}</div>
+          <div style={{ background: '#fff7ed', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', display: 'inline-block', color: MONO_NARANJA }}>Arroz Hoy: {safeText(tipoArrozHoy)}</div>
         </div>
 
         <div className="scroll-hide" style={{ display: 'flex', gap: '12px', overflowX: 'auto', padding: '20px 25px' }}>
@@ -387,35 +391,33 @@ export default function App() {
             .map(p => {
             const sel = selecciones[p.id] || {};
             const cant = cantidades[p.id] || 1;
-            // ✅ Lógica de precio SaaS: si Admin puso un precio fijo, manda ese. Si no, manda el del tamaño.
             const pActual = p.precio > 0 ? p.precio : (p.tamanos ? (sel.tamano?.p || p.tamanos[0].p) : (p.precio || 0));
             return (
               <div key={p.id} className="card-hover" style={{ background: 'white', borderRadius: '35px', overflow: 'hidden', position: 'relative', opacity: p.disponible ? 1 : 0.5 }}>
                 {!p.disponible && <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>}
                 <div style={{ height: '140px', background: `url(${p.imagen}) center/cover` }} />
                 <div style={{ padding: '15px', textAlign: 'center' }}>
-                  <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{String(p.nombre)}</h3>
+                  <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{safeText(p.nombre)}</h3>
                   <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px', marginBottom: '10px' }}>${pActual.toLocaleString()}</div>
                   
                   {p.opciones && (
                     <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
                       <option>Sabor...</option>
-                      {p.opciones.map(o => <option key={o} value={o}>{o}</option>)}
+                      {p.opciones.map(o => <option key={o} value={o}>{safeText(o)}</option>)}
                     </select>
                   )}
 
-                  {/* ✅ FIX PARA BEBIDAS: Soporte para Sabores */}
                   {p.sabores && (
                     <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
                       <option>Sabor...</option>
-                      {p.sabores.map(s => <option key={s} value={s}>{s}</option>)}
+                      {p.sabores.map(s => <option key={s} value={s}>{safeText(s)}</option>)}
                     </select>
                   )}
 
                   {p.tamanos && (
                     <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
                       <option>Tamaño...</option>
-                      {p.tamanos.map(t => <option key={t.n} value={t.n}>{t.n} (${t.p.toLocaleString()})</option>)}
+                      {p.tamanos.map(t => <option key={t.n} value={t.n}>{safeText(t.n)} (${t.p.toLocaleString()})</option>)}
                     </select>
                   )}
 
@@ -433,8 +435,8 @@ export default function App() {
 
         {mesa && (
           <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', zIndex: 5000, width: '90%', maxWidth: '450px' }}>
-            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_AZUL, color: 'white', fontWeight: 'bold', border: 'none' }}>🙋 Llamar Mesero</button>
-            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_VERDE, color: 'white', fontWeight: 'bold', border: 'none' }}>💳 Pedir Cuenta</button>
+            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', border: 'none', background: MONO_AZUL, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>🙋 Llamar Mesero</button>
+            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', border: 'none', background: MONO_VERDE, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>💳 Pedir Cuenta</button>
           </div>
         )}
 
@@ -444,7 +446,7 @@ export default function App() {
             {pedido.map(it => (
               <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #eee' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong style={{fontSize:'18px'}}>{it.cantidad}x</strong> {String(it.nombre)}</span>
+                  <span><strong style={{fontSize:'18px'}}>{it.cantidad}x</strong> {safeText(it.nombre)}</span>
                   <strong>${it.subtotal.toLocaleString()}</strong>
                 </div>
                 <input type="text" placeholder="📝 Nota..." value={notas[it.idUnico] || ""} onChange={e => setNotas(prev => ({ ...prev, [it.idUnico]: e.target.value }))} style={{ width: '100%', marginTop: '10px', padding: '12px', borderRadius: '15px', border: '1px solid #eee', boxSizing: 'border-box' }} />

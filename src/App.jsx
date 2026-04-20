@@ -8,8 +8,8 @@ const MONO_VERDE = "#16a34a";
 const MONO_AZUL = "#3b82f6";
 const MONO_TEXTO = "#333333";
 const MONO_ROJO = "#ef4444";
+const MONO_AMARILLO = "#fbbf24";
 
-// ✅ FIX 3: El beep se crea dentro de un handler, no al cargar el módulo
 let beepAudio = null;
 const playBeep = () => {
   if (!beepAudio) {
@@ -18,16 +18,20 @@ const playBeep = () => {
   beepAudio.play().catch(() => {});
 };
 
-// ✅ FIX 3: Animación pulse inyectada via <style> global
 const pulseStyle = `
   @keyframes mono-pulse {
     0%   { box-shadow: 0 5px 15px rgba(251,191,36,0.3); transform: scale(1); }
     50%  { box-shadow: 0 5px 30px rgba(251,191,36,0.7); transform: scale(1.02); }
     100% { box-shadow: 0 5px 15px rgba(251,191,36,0.3); transform: scale(1); }
   }
-  .pedido-pendiente {
-    animation: mono-pulse 1.6s ease-in-out infinite;
+  .pedido-pendiente { animation: mono-pulse 1.6s ease-in-out infinite; }
+
+  @keyframes alerta-pulse {
+    0%   { box-shadow: 0 5px 15px rgba(239,68,68,0.3); transform: scale(1); }
+    50%  { box-shadow: 0 5px 30px rgba(239,68,68,0.8); transform: scale(1.02); }
+    100% { box-shadow: 0 5px 15px rgba(239,68,68,0.3); transform: scale(1); }
   }
+  .alerta-mesa { animation: alerta-pulse 1.2s ease-in-out infinite; }
 `;
 
 // --- DATA ---
@@ -45,36 +49,41 @@ const productosBase = [
   { id: "lz1", nombre: "Arroz Especial", precio: 6000, categoria: "Arroces", disponible: true, imagen: "/arroz-pollo.jpg" }
 ];
 
+const ESTADO_LABEL = {
+  pendiente:  { emoji: "🟡", texto: "En cola..." },
+  preparando: { emoji: "👨‍🍳", texto: "Preparando" },
+  entregado:  { emoji: "✅", texto: "¡Listo!" },
+};
+
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [tabActiva, setTabActiva] = useState("pedidos");
   const [pedidosFB, setPedidosFB] = useState([]);
+  const [alertasFB, setAlertasFB] = useState([]);
   const [pedido, setPedido] = useState([]);
+  const [notas, setNotas] = useState({});
   const [mesa, setMesa] = useState(null);
   const [categoriaActiva, setCategoriaActiva] = useState("Fritos");
   const [selecciones, setSelecciones] = useState({});
   const [cantidades, setCantidades] = useState({});
   const [nombre, setNombre] = useState("");
   const [direccion, setDireccion] = useState("");
-  // ✅ FIX 1: Estado para error de dirección vacía
   const [errorDireccion, setErrorDireccion] = useState(false);
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [verPrecuenta, setVerPrecuenta] = useState(false);
   const [agradecimiento, setAgradecimiento] = useState(false);
+  const [alertaEnviada, setAlertaEnviada] = useState(null);
 
   const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
   const tipoArrozHoy = ["lunes", "miércoles", "viernes"].includes(hoy) ? "Pollo" : "Cerdo";
 
-  // --- Detector de Mesa QR ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const m = params.get('mesa');
     if (m) { setMesa(m); setNombre(`Cliente Mesa ${m}`); }
   }, []);
 
-  // --- Sincronización y Notificaciones ---
-  // ✅ Listener montado una sola vez, conteo previo guardado en ref
   const prevCountRef = React.useRef(0);
   useEffect(() => {
     const q = query(collection(db, "pedidos"), orderBy("timestamp", "asc"));
@@ -92,34 +101,66 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
+  // ✅ NEW 4: Listener para alertas de mesero
+  useEffect(() => {
+    const q = query(collection(db, "alertas"), orderBy("timestamp", "asc"));
+    return onSnapshot(q, (s) => {
+      const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (data.length > 0 && isAdmin) playBeep();
+      setAlertasFB(data);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
-    let precioF = p.precio || (sel.tamano ? sel.tamano.p : 0);
-    // ✅ FIX 2: Incluir la config elegida en el detalle del item
+    const precioF = p.precio || (sel.tamano ? sel.tamano.p : 0);
     const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
-    setPedido([...pedido, { idUnico: Date.now(), nombre: p.nombre, cantidad: cant, subtotal: precioF * cant, detalle: det }]);
+    const idUnico = Date.now();
+    setPedido(prev => [...prev, { idUnico, nombre: p.nombre, cantidad: cant, subtotal: precioF * cant, detalle: det }]);
   };
 
-  // ✅ FIX 1: Validación de dirección antes de procesar
+  // ✅ NEW 3: Eliminar item del carrito
+  const eliminarDelCarrito = (idUnico) => {
+    setPedido(prev => prev.filter(it => it.idUnico !== idUnico));
+    setNotas(prev => { const n = { ...prev }; delete n[idUnico]; return n; });
+  };
+
   const procesarPedido = async () => {
-    if (!mesa && !direccion.trim()) {
-      setErrorDireccion(true);
-      return;
-    }
+    if (!mesa && !direccion.trim()) { setErrorDireccion(true); return; }
     setErrorDireccion(false);
     const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
+    // ✅ NEW 1: Guardar nota por item
+    const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
-      nombre, ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
-      productos: pedido, total, timestamp: Date.now(),
+      nombre,
+      ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
+      productos: productosConNotas,
+      total, timestamp: Date.now(),
       hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       estado: "pendiente", tipo: mesa ? "mesa" : "domicilio"
     });
-    setAgradecimiento(true); setPedido([]);
+    setAgradecimiento(true); setPedido([]); setNotas({});
   };
 
   const actualizarEstado = async (id, estado) => {
     await updateDoc(doc(db, "pedidos", id), { estado });
+  };
+
+  // ✅ NEW 4: Enviar alerta al admin
+  const enviarAlerta = async (tipo) => {
+    if (!mesa) return;
+    await setDoc(doc(db, "alertas", `ALERTA-${mesa}-${Date.now()}`), {
+      mesa, tipo, timestamp: Date.now(),
+      hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    });
+    setAlertaEnviada(tipo);
+    setTimeout(() => setAlertaEnviada(null), 4000);
+  };
+
+  const descartarAlerta = async (id) => {
+    await deleteDoc(doc(db, "alertas", id));
   };
 
   const pedidosMesaActual = pedidosFB.filter(p => p.ubicacion === `MESA ${mesa}` && p.estado !== "pagado");
@@ -137,10 +178,10 @@ export default function App() {
 
     return (
       <>
-        {/* ✅ FIX 3: Inyectar estilos de animación */}
         <style>{pulseStyle}</style>
         <div style={{ padding: '20px', background: pendientes > 0 ? '#fff7ed' : '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif' }}>
           <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h1 style={{ color: MONO_NARANJA }}>Admin Mono {pendientes > 0 ? '🔔' : '🐒'}</h1>
               <div style={{ background: MONO_TEXTO, color: 'white', padding: '10px 20px', borderRadius: '15px' }}>
@@ -148,6 +189,23 @@ export default function App() {
               </div>
               <button onClick={() => setIsAdmin(false)} style={{ padding: '10px', borderRadius: '10px', border: 'none', cursor: 'pointer' }}>Salir</button>
             </div>
+
+            {/* ✅ NEW 4: Alertas de mesa pulsando arriba del todo */}
+            {alertasFB.length > 0 && (
+              <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {alertasFB.map(a => (
+                  <div key={a.id} className="alerta-mesa" style={{ background: 'white', padding: '15px 25px', borderRadius: '20px', border: `3px solid ${MONO_ROJO}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '16px' }}>
+                      {a.tipo === 'mesero' ? '🙋' : '💳'} Mesa {a.mesa} — {a.tipo === 'mesero' ? 'Llama al mesero' : 'Pide la cuenta'}
+                      <small style={{ color: '#999', marginLeft: '8px' }}>({a.hora})</small>
+                    </span>
+                    <button onClick={() => descartarAlerta(a.id)} style={{ background: MONO_ROJO, color: 'white', border: 'none', borderRadius: '10px', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      Atendido ✓
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
               <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '15px', borderRadius: '15px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", border: pendientes > 0 && tabActiva !== "pedidos" ? `3px solid ${MONO_ROJO}` : 'none', fontWeight: 'bold', cursor: 'pointer' }}>👨‍🍳 Cocina ({pendientes})</button>
@@ -158,20 +216,17 @@ export default function App() {
             {tabActiva === "pedidos" && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
                 {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
-                  // ✅ FIX 3: Clase pulse solo en pedidos pendientes
-                  <div
-                    key={p.id}
-                    className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''}
-                    style={{ background: 'white', padding: '20px', borderRadius: '25px', borderLeft: `10px solid ${p.estado === 'pendiente' ? '#fbbf24' : MONO_AZUL}` }}
-                  >
+                  <div key={p.id} className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} style={{ background: 'white', padding: '20px', borderRadius: '25px', borderLeft: `10px solid ${p.estado === 'pendiente' ? MONO_AMARILLO : MONO_AZUL}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <strong>{p.ubicacion}</strong>
                       <small>{p.hora} (${p.total.toLocaleString()})</small>
                     </div>
                     {p.productos.map((it, i) => (
-                      <div key={i} style={{ fontSize: '14px' }}>
+                      <div key={i} style={{ fontSize: '14px', marginTop: '6px' }}>
                         • {it.cantidad}x {it.nombre}
-                        {it.detalle ? <span style={{ color: '#999' }}> — {it.detalle}</span> : null}
+                        {it.detalle && <span style={{ color: '#888' }}> — {it.detalle}</span>}
+                        {/* ✅ NEW 1: Nota visible en cocina */}
+                        {it.nota && <div style={{ marginLeft: '14px', color: MONO_ROJO, fontSize: '13px' }}>📝 {it.nota}</div>}
                       </div>
                     ))}
                     <div style={{ display: 'flex', gap: '5px', marginTop: '15px' }}>
@@ -247,23 +302,60 @@ export default function App() {
 
         {/* Botón Pre-cuenta flotante */}
         {mesa && totalAcumuladoMesa > 0 && (
-          <button onClick={() => setVerPrecuenta(true)} style={{ position: 'fixed', bottom: '100px', right: '20px', background: MONO_TEXTO, color: 'white', padding: '15px 25px', borderRadius: '50px', border: 'none', fontWeight: '900', boxShadow: '0 10px 20px rgba(0,0,0,0.2)', zIndex: 5000 }}>
+          <button onClick={() => setVerPrecuenta(true)} style={{ position: 'fixed', bottom: '160px', right: '20px', background: MONO_TEXTO, color: 'white', padding: '15px 25px', borderRadius: '50px', border: 'none', fontWeight: '900', boxShadow: '0 10px 20px rgba(0,0,0,0.2)', zIndex: 5000 }}>
             📄 Mi cuenta (${totalAcumuladoMesa.toLocaleString()})
           </button>
         )}
 
-        {/* Modal Pre-cuenta */}
+        {/* ✅ NEW 4: Botones Llamar mesero / Pedir cuenta — solo en mesas */}
+        {mesa && (
+          <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', zIndex: 5000 }}>
+            <button
+              onClick={() => enviarAlerta('mesero')}
+              disabled={!!alertaEnviada}
+              style={{ padding: '13px 20px', borderRadius: '40px', border: 'none', background: alertaEnviada ? '#ccc' : MONO_AZUL, color: 'white', fontWeight: 'bold', cursor: alertaEnviada ? 'default' : 'pointer', boxShadow: '0 5px 15px rgba(0,0,0,0.15)', fontSize: '14px' }}
+            >
+              🙋 Llamar mesero
+            </button>
+            <button
+              onClick={() => enviarAlerta('cuenta')}
+              disabled={!!alertaEnviada}
+              style={{ padding: '13px 20px', borderRadius: '40px', border: 'none', background: alertaEnviada ? '#ccc' : MONO_VERDE, color: 'white', fontWeight: 'bold', cursor: alertaEnviada ? 'default' : 'pointer', boxShadow: '0 5px 15px rgba(0,0,0,0.15)', fontSize: '14px' }}
+            >
+              💳 Pedir la cuenta
+            </button>
+          </div>
+        )}
+
+        {/* Feedback al cliente tras enviar alerta */}
+        {alertaEnviada && (
+          <div style={{ position: 'fixed', bottom: '90px', left: '50%', transform: 'translateX(-50%)', background: 'white', padding: '10px 20px', borderRadius: '20px', fontSize: '14px', color: MONO_VERDE, fontWeight: 'bold', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', zIndex: 5001 }}>
+            ✅ {alertaEnviada === 'mesero' ? '¡Mesero en camino!' : '¡Ya va la cuenta!'}
+          </div>
+        )}
+
+        {/* Modal Pre-cuenta con estado en tiempo real */}
         {verPrecuenta && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
             <div style={{ background: 'white', width: '100%', maxWidth: '450px', borderRadius: '40px', padding: '30px', position: 'relative' }}>
               <button onClick={() => setVerPrecuenta(false)} style={{ position: 'absolute', top: 20, right: 20, border: 'none', background: '#eee', borderRadius: '50%', width: '35px', height: '35px' }}>✕</button>
               <h2 style={{ textAlign: 'center' }}>Mesa {mesa} 🐒</h2>
-              <div style={{ maxHeight: '300px', overflowY: 'auto', borderTop: '2px dashed #ddd', paddingTop: '15px' }}>
+              <div style={{ maxHeight: '350px', overflowY: 'auto', borderTop: '2px dashed #ddd', paddingTop: '15px' }}>
                 {pedidosMesaActual.map(p => (
-                  <div key={p.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                  <div key={p.id} style={{ marginBottom: '12px', borderBottom: '1px solid #eee', paddingBottom: '12px' }}>
+                    {/* ✅ NEW 2: Estado del pedido en tiempo real para el cliente */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: p.estado === 'entregado' ? MONO_VERDE : p.estado === 'preparando' ? MONO_AZUL : MONO_AMARILLO }}>
+                        {ESTADO_LABEL[p.estado]?.emoji} {ESTADO_LABEL[p.estado]?.texto}
+                      </span>
+                      <small style={{ color: '#bbb' }}>{p.hora}</small>
+                    </div>
                     {p.productos.map((it, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                        <span>{it.cantidad}x {it.nombre} {it.detalle && <small style={{ color: '#999' }}>({it.detalle})</small>}</span>
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', paddingLeft: '8px' }}>
+                        <span>
+                          {it.cantidad}x {it.nombre}
+                          {it.detalle && <small style={{ color: '#999' }}> ({it.detalle})</small>}
+                        </span>
                         <strong>${it.subtotal.toLocaleString()}</strong>
                       </div>
                     ))}
@@ -282,7 +374,6 @@ export default function App() {
           <div style={{ marginTop: '10px', background: '#fff7ed', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', display: 'inline-block' }}>Arroz: {tipoArrozHoy}</div>
         </header>
 
-        {/* Menú por Categorías */}
         <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', padding: '25px' }}>
           {["Fritos", "Desayunos", "Arroces", "Bebidas"].map(cat => (
             <button key={cat} onClick={() => setCategoriaActiva(cat)} style={{ padding: '12px 25px', borderRadius: '30px', border: 'none', background: categoriaActiva === cat ? MONO_NARANJA : 'white', color: categoriaActiva === cat ? 'white' : MONO_TEXTO, fontWeight: 'bold', cursor: 'pointer' }}>{cat}</button>
@@ -299,7 +390,6 @@ export default function App() {
                 <h3>{p.nombre}</h3>
                 <p style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '22px' }}>${pActual.toLocaleString()}</p>
 
-                {/* Opciones de relleno (Fritos) */}
                 {p.opciones && (
                   <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '15px' }}>
                     {p.opciones.map(o => (
@@ -308,7 +398,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ✅ FIX 2: Config de Desayunos renderizada */}
                 {p.config && (
                   <div style={{ marginBottom: '15px' }}>
                     <p style={{ fontSize: '12px', color: '#999', margin: '0 0 8px' }}>Acompañamiento:</p>
@@ -320,7 +409,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Tamaños (Bebidas) */}
                 {p.tamanos && (
                   <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', marginBottom: '15px' }}>
                     {p.tamanos.map(t => (
@@ -329,7 +417,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Sabores (Jugos) */}
                 {p.sabores && (
                   <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '15px' }}>
                     {p.sabores.map(s => (
@@ -349,20 +436,34 @@ export default function App() {
           })}
         </div>
 
+        {/* Carrito */}
         {pedido.length > 0 && (
           <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
             <h2>🛒 Pedido Nuevo</h2>
             {pedido.map(it => (
-              <div key={it.idUnico} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #eee' }}>
-                <span>
-                  <strong>{it.cantidad}x</strong> {it.nombre}
-                  {it.detalle && <><br /><small style={{ color: '#999' }}>{it.detalle}</small></>}
-                </span>
-                <strong>${it.subtotal.toLocaleString()}</strong>
+              <div key={it.idUnico} style={{ padding: '12px 0', borderBottom: '1px solid #eee' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span>
+                    <strong>{it.cantidad}x</strong> {it.nombre}
+                    {it.detalle && <><br /><small style={{ color: '#999' }}>{it.detalle}</small></>}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <strong>${it.subtotal.toLocaleString()}</strong>
+                    {/* ✅ NEW 3: Botón eliminar */}
+                    <button onClick={() => eliminarDelCarrito(it.idUnico)} style={{ background: '#fee2e2', border: 'none', borderRadius: '8px', color: MONO_ROJO, padding: '4px 10px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+                  </div>
+                </div>
+                {/* ✅ NEW 1: Nota por item */}
+                <input
+                  type="text"
+                  placeholder="📝 Nota (ej: sin cebolla)..."
+                  value={notas[it.idUnico] || ""}
+                  onChange={e => setNotas(prev => ({ ...prev, [it.idUnico]: e.target.value }))}
+                  style={{ width: '100%', marginTop: '8px', padding: '8px 12px', borderRadius: '10px', border: '1px solid #eee', fontSize: '13px', color: '#555', boxSizing: 'border-box' }}
+                />
               </div>
             ))}
 
-            {/* ✅ FIX 1: Campo de dirección con validación visual */}
             {!mesa && (
               <div style={{ marginTop: '15px' }}>
                 <input
@@ -370,20 +471,9 @@ export default function App() {
                   placeholder="📍 Dirección de entrega *"
                   value={direccion}
                   onChange={e => { setDireccion(e.target.value); setErrorDireccion(false); }}
-                  style={{
-                    width: '100%',
-                    padding: '15px',
-                    borderRadius: '15px',
-                    border: errorDireccion ? `2px solid ${MONO_ROJO}` : '1px solid #ddd',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
+                  style={{ width: '100%', padding: '15px', borderRadius: '15px', border: errorDireccion ? `2px solid ${MONO_ROJO}` : '1px solid #ddd', outline: 'none', boxSizing: 'border-box' }}
                 />
-                {errorDireccion && (
-                  <p style={{ color: MONO_ROJO, fontSize: '13px', margin: '6px 0 0 5px' }}>
-                    ⚠️ Por favor ingresa la dirección de entrega
-                  </p>
-                )}
+                {errorDireccion && <p style={{ color: MONO_ROJO, fontSize: '13px', margin: '6px 0 0 5px' }}>⚠️ Por favor ingresa la dirección de entrega</p>}
               </div>
             )}
 

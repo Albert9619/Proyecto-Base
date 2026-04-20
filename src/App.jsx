@@ -35,6 +35,18 @@ const pulseStyle = `
   
   .card-hover:hover { transform: translateY(-5px); transition: 0.3s; }
   .scroll-hide::-webkit-scrollbar { display: none; }
+
+  /* Estilos para Impresión de QRs */
+  @media print {
+    .no-print { display: none !important; }
+    .print-area { display: block !important; padding: 0 !important; }
+    .qr-grid-print { 
+      display: grid !important; 
+      grid-template-columns: repeat(2, 1fr) !important; 
+      gap: 40px !important; 
+      background: white !important;
+    }
+  }
 `;
 
 // --- DATA ---
@@ -75,6 +87,9 @@ export default function App() {
   const [verPrecuenta, setVerPrecuenta] = useState(false);
   const [agradecimiento, setAgradecimiento] = useState(false);
   const [alertaEnviada, setAlertaEnviada] = useState(null);
+  
+  // ✅ NUEVO: Base URL para los QRs
+  const [baseUrl, setBaseUrl] = useState(window.location.origin);
 
   const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
   const tipoArrozHoy = ["lunes", "miércoles", "viernes"].includes(hoy) ? "Pollo" : "Cerdo";
@@ -82,7 +97,6 @@ export default function App() {
   const prevPedidosRef = useRef(0);
   const prevAlertasRef = useRef(0);
 
-  // --- Detector de Carga ---
   const numPendientes = pedidosFB.filter(p => p.estado === 'pendiente').length;
   const workload = numPendientes <= 3 ? { t: "Cocina Despejada", c: MONO_VERDE, m: "5-10 min" } :
                    numPendientes <= 8 ? { t: "Cocina con Flujo", c: MONO_AMARILLO, m: "15-20 min" } :
@@ -94,7 +108,6 @@ export default function App() {
     if (m) { setMesa(m); setNombre(`Cliente Mesa ${m}`); }
   }, []);
 
-  // Sync Pedidos
   useEffect(() => {
     const q = query(collection(db, "pedidos"), orderBy("timestamp", "asc"));
     return onSnapshot(q, (s) => {
@@ -109,7 +122,6 @@ export default function App() {
     });
   }, [isAdmin]);
 
-  // Sync Alertas Mesero
   useEffect(() => {
     const q = query(collection(db, "alertas"), orderBy("timestamp", "asc"));
     return onSnapshot(q, (s) => {
@@ -179,7 +191,7 @@ export default function App() {
       <>
         <style>{pulseStyle}</style>
         <div style={{ padding: '20px', background: numPendientes > 0 ? '#fee2e2' : '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div className="no-print" style={{ maxWidth: '1200px', margin: '0 auto' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h1 style={{ color: MONO_NARANJA, fontSize: '32px', margin: 0 }}>Panel Admin {numPendientes > 0 ? '🔔' : '🐒'}</h1>
@@ -189,7 +201,6 @@ export default function App() {
               <button onClick={() => setIsAdmin(false)} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#ddd', fontWeight: 'bold', cursor: 'pointer' }}>Salir</button>
             </div>
 
-            {/* Alertas Mesero */}
             {alertasFB.map(a => (
               <div key={a.id} className="alerta-notif" style={{ padding: '20px', borderRadius: '20px', marginBottom: '15px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '22px', fontWeight: '900' }}>{a.tipo === 'mesero' ? '🙋 LLAMADO' : '💳 CUENTA'} - MESA {a.mesa}</span>
@@ -197,10 +208,11 @@ export default function App() {
               </div>
             ))}
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
-              <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: numPendientes > 0 ? `4px solid ${MONO_ROJO}` : 'none', cursor: 'pointer' }}>👨‍🍳 COCINA ({numPendientes})</button>
-              <button onClick={() => setTabActiva("mesas")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "mesas" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>💰 COBROS</button>
-              <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>📊 CAJA</button>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }} className="scroll-hide">
+              <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: numPendientes > 0 ? `4px solid ${MONO_ROJO}` : 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>👨‍🍳 COCINA ({numPendientes})</button>
+              <button onClick={() => setTabActiva("mesas")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "mesas" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>💰 COBROS</button>
+              <button onClick={() => setTabActiva("qrs")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "qrs" ? MONO_AZUL : "white", color: tabActiva === "qrs" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📌 QRs</button>
+              <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📊 CAJA</button>
             </div>
 
             {tabActiva === "pedidos" && (
@@ -253,6 +265,44 @@ export default function App() {
                         <button onClick={() => actualizarEstado(p.id, 'pagado')} style={{ width: '100%', marginTop: '12px', background: MONO_VERDE, color: 'white', border: 'none', borderRadius: '12px', padding: '10px', fontWeight: 'bold', cursor: 'pointer' }}>RECIBÍ PAGO ✅</button>
                       </div>
                     ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ✅ NUEVA PESTAÑA QRS */}
+            {tabActiva === "qrs" && (
+              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
+                <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
+                <p>Verifica que la dirección de tu app sea correcta:</p>
+                <input 
+                  type="text" 
+                  value={baseUrl} 
+                  onChange={(e) => setBaseUrl(e.target.value)} 
+                  style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '1px solid #ddd', marginBottom: '20px', fontSize: '16px' }} 
+                />
+                <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>🖨️ Imprimir Códigos</button>
+                
+                <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                    <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
+                      <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>MESA {n}</strong>
+                      <img 
+                        src={`https://chart.googleapis.com/chart?cht=qr&chs=250x250&chl=${encodeURIComponent(baseUrl + '?mesa=' + n)}`} 
+                        alt={`QR Mesa ${n}`} 
+                        style={{ width: '100%', maxWidth: '180px' }} 
+                      />
+                      <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>Fritos El Mono 🐒</p>
+                    </div>
+                  ))}
+                  <div style={{ textAlign: 'center', padding: '20px', border: '2px solid #eee', borderRadius: '25px', background: '#fffcf5' }}>
+                    <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>DOMICILIOS</strong>
+                    <img 
+                      src={`https://chart.googleapis.com/chart?cht=qr&chs=250x250&chl=${encodeURIComponent(baseUrl)}`} 
+                      alt="QR Domicilio" 
+                      style={{ width: '100%', maxWidth: '180px' }} 
+                    />
+                    <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>¡Pide desde casa! 🛵</p>
                   </div>
                 </div>
               </div>

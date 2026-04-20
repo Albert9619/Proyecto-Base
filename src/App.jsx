@@ -25,17 +25,14 @@ const pulseStyle = `
     100% { box-shadow: 0 5px 15px rgba(251,191,36,0.2); transform: scale(1); }
   }
   .pedido-pendiente { animation: mono-pulse 1.6s ease-in-out infinite; }
-
   @keyframes alerta-pulse {
     0%   { transform: scale(1); background: #ef4444; }
     50%  { transform: scale(1.05); background: #b91c1c; }
     100% { transform: scale(1); background: #ef4444; }
   }
   .alerta-notif { animation: alerta-pulse 1s infinite; }
-  
   .card-hover:hover { transform: translateY(-5px); transition: 0.3s; }
   .scroll-hide::-webkit-scrollbar { display: none; }
-
   @media print {
     .no-print { display: none !important; }
     .print-area { display: block !important; padding: 0 !important; }
@@ -67,11 +64,17 @@ const ESTADO_LABEL = {
   entregado:  { emoji: "✅", texto: "¡Listo!" },
 };
 
-// ✅ HELPER PARA RENDERIZADO SEGURO (Evita Error #31)
+// ✅ HELPER PARA RENDERIZADO SEGURO
 const safeText = (val) => {
   if (val === null || val === undefined) return "";
   if (typeof val === 'object') return val.nombre || "Error de dato";
   return String(val);
+};
+
+// ✅ HELPER PARA PRECIOS SEGUROS (Evita error toLocaleString)
+const safeMoney = (val) => {
+  const n = Number(val);
+  return isNaN(n) ? "0" : n.toLocaleString();
 };
 
 export default function App() {
@@ -160,10 +163,10 @@ export default function App() {
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
-    const precioBase = p.precio > 0 ? p.precio : (sel.tamano ? sel.tamano.p : 0);
+    // ✅ CORRECCIÓN PRECIO BEBIDAS
+    const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
     const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
-    const idUnico = Date.now();
-    setPedido(prev => [...prev, { idUnico, nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
+    setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
   };
 
   const eliminarDelCarrito = (idUnico) => {
@@ -176,36 +179,25 @@ export default function App() {
     setErrorDireccion(false);
     const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
     const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
-    
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
-      nombre: safeText(nombre),
-      ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
-      productos: productosConNotas,
-      total, timestamp: Date.now(),
+      nombre: safeText(nombre), ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
+      productos: productosConNotas, total, timestamp: Date.now(),
       hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       estado: "pendiente", tipo: mesa ? "mesa" : "domicilio"
     });
     setAgradecimiento(true); setPedido([]); setNotas({});
   };
 
-  const actualizarEstado = async (id, estado) => {
-    await updateDoc(doc(db, "pedidos", id), { estado });
-  };
-
+  const actualizarEstado = async (id, estado) => { await updateDoc(doc(db, "pedidos", id), { estado }); };
   const enviarAlerta = async (tipo) => {
     if (!mesa) return;
     await setDoc(doc(db, "alertas", `ALERTA-${mesa}-${Date.now()}`), { mesa, tipo, timestamp: Date.now(), hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
     setAlertaEnviada(tipo); setTimeout(() => setAlertaEnviada(null), 4000);
   };
 
-  const descartarAlerta = async (id) => { await deleteDoc(doc(db, "alertas", id)); };
-
   const pedidosMesaActual = pedidosFB.filter(p => p.ubicacion === `MESA ${mesa}` && p.estado !== "pagado");
   const totalAcumuladoMesa = pedidosMesaActual.reduce((acc, p) => acc + (p.total || 0), 0);
 
-  // ==========================================
-  // 🔴 VISTA ADMINISTRADOR
-  // ==========================================
   if (isAdmin) {
     const pagados = pedidosFB.filter(p => p.estado === "pagado");
     const vLocal = pagados.filter(p => p.tipo === "mesa").reduce((acc, p) => acc + (p.total || 0), 0);
@@ -217,67 +209,42 @@ export default function App() {
         <style>{pulseStyle}</style>
         <div style={{ padding: '20px', background: numPendientes > 0 ? '#fee2e2' : '#f8fafc', minHeight: '100vh', fontFamily: 'sans-serif' }}>
           <div className="no-print" style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h1 style={{ color: MONO_NARANJA, fontSize: '32px', margin: 0 }}>Panel Admin {numPendientes > 0 ? '🔔' : '🐒'}</h1>
-              <div style={{ background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '20px', fontSize: '20px' }}>
-                Total Caja: <strong>${tVendido.toLocaleString()}</strong>
-              </div>
-              <button onClick={() => setIsAdmin(false)} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#ddd', fontWeight: 'bold', cursor: 'pointer' }}>Salir</button>
+              <h1 style={{ color: MONO_NARANJA, fontSize: '32px', margin: 0 }}>Panel Admin 🐒</h1>
+              <div style={{ background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '20px', fontSize: '20px' }}>Caja: <strong>${safeMoney(tVendido)}</strong></div>
+              <button onClick={() => setIsAdmin(false)} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#ddd', fontWeight: 'bold' }}>Salir</button>
             </div>
 
             {alertasFB.map(a => (
-              <div key={a.id} className="alerta-notif" style={{ padding: '20px', borderRadius: '20px', marginBottom: '15px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={a.id} className="alerta-notif" style={{ padding: '20px', borderRadius: '20px', marginBottom: '15px', color: 'white', display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '22px', fontWeight: '900' }}>{a.tipo === 'mesero' ? '🙋 LLAMADO' : '💳 CUENTA'} - MESA {a.mesa}</span>
-                <button onClick={() => descartarAlerta(a.id)} style={{ background: 'white', color: MONO_ROJO, border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>ATENDER</button>
+                <button onClick={() => deleteDoc(doc(db, "alertas", a.id))} style={{ background: 'white', color: MONO_ROJO, border: 'none', padding: '12px 25px', borderRadius: '12px', fontWeight: 'bold' }}>ATENDER</button>
               </div>
             ))}
 
             <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }} className="scroll-hide">
-              <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: numPendientes > 0 ? `4px solid ${MONO_ROJO}` : 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>👨‍🍳 COCINA ({numPendientes})</button>
-              <button onClick={() => setTabActiva("gestion")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "gestion" ? MONO_AZUL : "white", color: tabActiva === "gestion" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📦 GESTIÓN</button>
-              <button onClick={() => setTabActiva("mesas")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "mesas" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>💰 COBROS</button>
-              <button onClick={() => setTabActiva("qrs")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "qrs" ? MONO_AZUL : "white", color: tabActiva === "qrs" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📌 QRs</button>
-              <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📊 CAJA</button>
+              <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", fontSize: '18px', fontWeight: 'bold', border: numPendientes > 0 ? `4px solid ${MONO_ROJO}` : 'none' }}>COCINA ({numPendientes})</button>
+              <button onClick={() => setTabActiva("gestion")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "gestion" ? MONO_AZUL : "white", color: tabActiva === "gestion" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>GESTIÓN</button>
+              <button onClick={() => setTabActiva("mesas")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "mesas" ? MONO_NARANJA : "white", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>COBROS</button>
+              <button onClick={() => setTabActiva("qrs")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "qrs" ? MONO_AZUL : "white", color: tabActiva === "qrs" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>QRs</button>
+              <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>CAJA</button>
             </div>
 
             {tabActiva === "gestion" && (
-              <div style={{ background: 'white', padding: '30px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <div style={{ background: 'white', padding: '30px', borderRadius: '40px' }}>
                 <h2 style={{ color: MONO_TEXTO }}>Inventario y Precios 📋</h2>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '2px solid #eee' }}>
-                        <th style={{ padding: '15px' }}>Producto</th>
-                        <th style={{ padding: '15px' }}>Precio ($)</th>
-                        <th style={{ padding: '15px' }}>Disponibilidad</th>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead><tr style={{ borderBottom: '2px solid #eee' }}><th style={{ padding: '15px' }}>Producto</th><th style={{ padding: '15px' }}>Precio ($)</th><th style={{ padding: '15px' }}>Estado</th></tr></thead>
+                  <tbody>
+                    {menuFB.map(p => (
+                      <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '15px', fontWeight: 'bold' }}>{safeText(p.nombre)}</td>
+                        <td style={{ padding: '15px' }}><input type="number" defaultValue={p.precio} onBlur={(e) => actualizarPrecio(p.id, e.target.value)} style={{ width: '100px', padding: '8px', borderRadius: '10px', border: '1px solid #ddd' }} /></td>
+                        <td style={{ padding: '15px' }}><button onClick={() => toggleDisponibilidad(p.id, p.disponible)} style={{ padding: '10px 20px', borderRadius: '30px', border: 'none', background: p.disponible ? MONO_VERDE : MONO_ROJO, color: 'white', fontWeight: 'bold' }}>{p.disponible ? "HABILITADO" : "AGOTADO"}</button></td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {menuFB.map(p => (
-                        <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '15px', fontWeight: 'bold' }}>{safeText(p.nombre)}</td>
-                          <td style={{ padding: '15px' }}>
-                            <input 
-                              type="number" 
-                              defaultValue={p.precio} 
-                              onBlur={(e) => actualizarPrecio(p.id, e.target.value)}
-                              style={{ width: '100px', padding: '8px', borderRadius: '10px', border: '1px solid #ddd' }}
-                            />
-                          </td>
-                          <td style={{ padding: '15px' }}>
-                            <button 
-                              onClick={() => toggleDisponibilidad(p.id, p.disponible)}
-                              style={{ padding: '10px 20px', borderRadius: '30px', border: 'none', background: p.disponible ? MONO_VERDE : MONO_ROJO, color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
-                            >
-                              {p.disponible ? "HABILITADO" : "AGOTADO"}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 
@@ -285,20 +252,13 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '25px' }}>
                 {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
                   <div key={p.id} className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} style={{ background: 'white', padding: '25px', borderRadius: '35px', border: p.estado === 'pendiente' ? `4px solid ${MONO_AMARILLO}` : `4px solid ${MONO_AZUL}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
-                      <span style={{ fontSize: '26px', fontWeight: '900' }}>{safeText(p.ubicacion)}</span>
-                      <span style={{ fontSize: '18px' }}>{safeText(p.hora)}</span>
-                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}><span style={{ fontSize: '26px', fontWeight: '900' }}>{safeText(p.ubicacion)}</span><span style={{ fontSize: '18px' }}>{safeText(p.hora)}</span></div>
                     {p.productos.map((it, i) => (
-                      <div key={i} style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {safeText(it.nombre)}</div>
-                        {it.detalle && <div style={{ color: '#666', fontSize: '15px' }}>{safeText(it.detalle)}</div>}
-                        {it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold', fontSize: '16px' }}>📝 {safeText(it.nota)}</div>}
-                      </div>
+                      <div key={i} style={{ marginBottom: '12px' }}><div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {safeText(it.nombre)}</div>{it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold' }}>📝 {safeText(it.nota)}</div>}</div>
                     ))}
                     <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                      {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{ flex: 1, background: MONO_AZUL, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900', cursor: 'pointer' }}>FRITAR 👨‍🍳</button>}
-                      {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'entregado')} style={{ flex: 1, background: MONO_VERDE, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900', cursor: 'pointer' }}>DESPACHAR ✅</button>}
+                      {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{ flex: 1, background: MONO_AZUL, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>FRITAR 👨‍🍳</button>}
+                      {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'entregado')} style={{ flex: 1, background: MONO_VERDE, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>DESPACHAR ✅</button>}
                     </div>
                   </div>
                 ))}
@@ -314,9 +274,8 @@ export default function App() {
                   if (mesaPed.length === 0) return <div key={n} style={{ background: 'white', padding: '20px', borderRadius: '25px', border: '1px dashed #ccc', textAlign: 'center', color: '#999' }}>Mesa {n}</div>;
                   return (
                     <div key={n} style={{ background: 'white', padding: '25px', borderRadius: '35px', border: `3px solid ${isReady ? MONO_ROJO : MONO_NARANJA}`, textAlign: 'center' }}>
-                      <h3 style={{ margin: 0 }}>MESA {n}</h3>
-                      <div style={{ fontSize: '28px', fontWeight: '900', margin: '15px 0' }}>${totalM.toLocaleString()}</div>
-                      <button onClick={() => { if (window.confirm("¿Cobrar?")) mesaPed.forEach(p => actualizarEstado(p.id, 'pagado')); }} style={{ width: '100%', padding: '15px', background: isReady ? MONO_ROJO : MONO_TEXTO, color: 'white', border: 'none', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer' }}>PAGAR CUENTA 💸</button>
+                      <h3 style={{ margin: 0 }}>MESA {n}</h3><div style={{ fontSize: '28px', fontWeight: '900', margin: '15px 0' }}>${safeMoney(totalM)}</div>
+                      <button onClick={() => { if (window.confirm("¿Cobrar?")) mesaPed.forEach(p => actualizarEstado(p.id, 'pagado')); }} style={{ width: '100%', padding: '15px', background: isReady ? MONO_ROJO : MONO_TEXTO, color: 'white', border: 'none', borderRadius: '15px', fontWeight: 'bold' }}>PAGAR CUENTA 💸</button>
                     </div>
                   );
                 })}
@@ -325,31 +284,27 @@ export default function App() {
 
             {tabActiva === "qrs" && (
               <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
-                <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
-                <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '2px solid #ddd', marginBottom: '20px', fontSize: '16px' }} />
-                <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>🖨️ Imprimir Códigos</button>
-                <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
-                    const qrUrl = `${baseUrl.replace(/\/$/, "")}?mesa=${n}`;
-                    return (
-                      <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px' }}>
-                        <strong style={{ fontSize: '20px' }}>MESA {n}</strong><br/>
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} style={{ width: '180px', margin: '15px 0' }} />
-                        <p style={{ fontSize: '10px', color: '#999' }}>Fritos El Mono 🐒</p>
-                      </div>
-                    );
-                  })}
+                <h2>Generador de Códigos QR 📌</h2>
+                <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '2px solid #ddd', marginBottom: '20px' }} />
+                <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold' }}>🖨️ Imprimir Códigos</button>
+                <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px', marginTop: '30px' }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                    <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px' }}>
+                      <strong>MESA {n}</strong><br/>
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(baseUrl.replace(/\/$/, "") + "?mesa=" + n)}`} style={{ width: '180px' }} />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
             {tabActiva === "caja" && (
               <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
-                <h2 style={{ color: MONO_NARANJA }}>Cuadre de Turno 📊</h2>
+                <h2>Cuadre de Turno 📊</h2>
                 <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
-                   <div style={{ fontSize: '42px', fontWeight: '950' }}>${tVendido.toLocaleString()}</div>
+                  <span>TOTAL RECAUDADO</span><div style={{ fontSize: '42px', fontWeight: '950' }}>${safeMoney(tVendido)}</div>
                 </div>
-                <button onClick={() => { if (window.confirm("¿Reiniciar Turno?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', marginTop: '20px', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>FINALIZAR DÍA 🏁</button>
+                <button onClick={() => { if (window.confirm("¿Reiniciar?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', marginTop: '30px', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold' }}>FINALIZAR DÍA 🏁</button>
               </div>
             )}
           </div>
@@ -358,14 +313,10 @@ export default function App() {
     );
   }
 
-  // ==========================================
-  // 🟡 VISTA CLIENTE
-  // ==========================================
   return (
     <>
       <style>{pulseStyle}</style>
       <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#fffcf5', minHeight: '100vh', paddingBottom: '180px' }}>
-        
         <header style={{ position: 'relative', height: '220px', background: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(https://images.unsplash.com/photo-1541592106381-b31e9221c004?q=80&w=1000&auto=format&fit=crop)`, backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white', borderRadius: '0 0 50px 50px' }}>
           <h1 onClick={() => setMostrarLogin(true)} style={{ fontSize: '2.8rem', margin: 0, fontWeight: '900', cursor: 'pointer' }}>Fritos El Mono</h1>
           <p>El sabor más crocante de Carepa 🐒</p>
@@ -375,56 +326,43 @@ export default function App() {
           </div>
         </header>
 
-        <div style={{ textAlign: 'center', marginTop: '50px' }}>
-          <div style={{ background: '#fff7ed', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', display: 'inline-block', color: MONO_NARANJA }}>Arroz Hoy: {safeText(tipoArrozHoy)}</div>
-        </div>
+        <div style={{ textAlign: 'center', marginTop: '50px' }}><div style={{ background: '#fff7ed', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', color: MONO_NARANJA }}>Arroz Hoy: {safeText(tipoArrozHoy)}</div></div>
 
         <div className="scroll-hide" style={{ display: 'flex', gap: '12px', overflowX: 'auto', padding: '20px 25px' }}>
           {["Fritos", "Desayunos", "Arroces", "Bebidas"].map(cat => (
-            <button key={cat} onClick={() => setCategoriaActiva(cat)} style={{ padding: '12px 28px', borderRadius: '30px', border: 'none', background: categoriaActiva === cat ? MONO_NARANJA : 'white', color: categoriaActiva === cat ? 'white' : MONO_TEXTO, fontWeight: 'bold', cursor: 'pointer' }}>{cat}</button>
+            <button key={cat} onClick={() => setCategoriaActiva(cat)} style={{ padding: '12px 28px', borderRadius: '30px', border: 'none', background: categoriaActiva === cat ? MONO_NARANJA : 'white', color: categoriaActiva === cat ? 'white' : MONO_TEXTO, fontWeight: 'bold' }}>{cat}</button>
           ))}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '20px', padding: '0 20px' }}>
-          {(menuFB.length > 0 ? menuFB : productosBase)
-            .filter(p => p.categoria === categoriaActiva)
-            .map(p => {
+          {(menuFB.length > 0 ? menuFB : productosBase).filter(p => p.categoria === categoriaActiva).map(p => {
             const sel = selecciones[p.id] || {};
             const cant = cantidades[p.id] || 1;
-            const pActual = p.precio > 0 ? p.precio : (p.tamanos ? (sel.tamano?.p || p.tamanos[0].p) : (p.precio || 0));
+            // ✅ CORRECCIÓN FINAL PRECIO BEBIDAS
+            const pActual = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
             return (
               <div key={p.id} className="card-hover" style={{ background: 'white', borderRadius: '35px', overflow: 'hidden', position: 'relative', opacity: p.disponible ? 1 : 0.5 }}>
                 {!p.disponible && <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>}
                 <div style={{ height: '140px', background: `url(${p.imagen}) center/cover` }} />
                 <div style={{ padding: '15px', textAlign: 'center' }}>
                   <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{safeText(p.nombre)}</h3>
-                  <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px', marginBottom: '10px' }}>${pActual.toLocaleString()}</div>
+                  <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px' }}>${safeMoney(pActual)}</div>
                   
-                  {p.opciones && (
-                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
-                      <option>Sabor...</option>
-                      {p.opciones.map(o => <option key={o} value={o}>{safeText(o)}</option>)}
-                    </select>
-                  )}
-
                   {p.sabores && (
-                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
-                      <option>Sabor...</option>
-                      {p.sabores.map(s => <option key={s} value={s}>{safeText(s)}</option>)}
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px' }}>
+                      <option>Sabor...</option>{p.sabores.map(s => <option key={s} value={s}>{safeText(s)}</option>)}
                     </select>
                   )}
-
                   {p.tamanos && (
-                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
-                      <option>Tamaño...</option>
-                      {p.tamanos.map(t => <option key={t.n} value={t.n}>{safeText(t.n)} (${t.p.toLocaleString()})</option>)}
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px' }}>
+                      <option>Tamaño...</option>{p.tamanos.map(t => <option key={t.n} value={t.n}>{safeText(t.n)} (${safeMoney(t.p)})</option>)}
                     </select>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '10px' }}>
-                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>-</button>
-                    <strong style={{ fontSize: '16px' }}>{cant}</strong>
-                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>+</button>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', margin: '10px 0' }}>
+                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })}>-</button>
+                    <strong>{cant}</strong>
+                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })}>+</button>
                   </div>
                   <button disabled={!p.disponible} onClick={() => agregarAlCarrito(p)} style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#ccc', color: 'white', borderRadius: '18px', border: 'none', fontWeight: 'bold' }}>Añadir 🛒</button>
                 </div>
@@ -435,45 +373,36 @@ export default function App() {
 
         {mesa && (
           <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', zIndex: 5000, width: '90%', maxWidth: '450px' }}>
-            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', border: 'none', background: MONO_AZUL, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>🙋 Llamar Mesero</button>
-            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', border: 'none', background: MONO_VERDE, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>💳 Pedir Cuenta</button>
+            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_AZUL, color: 'white', fontWeight: 'bold', border: 'none' }}>🙋 Llamar Mesero</button>
+            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_VERDE, color: 'white', fontWeight: 'bold', border: 'none' }}>💳 Pedir Cuenta</button>
           </div>
         )}
 
         {pedido.length > 0 && (
-          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
-            <h2 style={{ textAlign: 'center' }}>🛒 Tu Pedido Nuevo</h2>
+          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}` }}>
+            <h2 style={{ textAlign: 'center' }}>🛒 Tu Pedido</h2>
             {pedido.map(it => (
-              <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #eee' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong style={{fontSize:'18px'}}>{it.cantidad}x</strong> {safeText(it.nombre)}</span>
-                  <strong>${it.subtotal.toLocaleString()}</strong>
-                </div>
-                <input type="text" placeholder="📝 Nota..." value={notas[it.idUnico] || ""} onChange={e => setNotas(prev => ({ ...prev, [it.idUnico]: e.target.value }))} style={{ width: '100%', marginTop: '10px', padding: '12px', borderRadius: '15px', border: '1px solid #eee', boxSizing: 'border-box' }} />
+              <div key={it.idUnico} style={{ padding: '10px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
+                <span><strong>{it.cantidad}x</strong> {safeText(it.nombre)}</span>
+                <span><strong>${safeMoney(it.subtotal)}</strong></span>
               </div>
             ))}
-            <button onClick={procesarPedido} style={{ width: '100%', marginTop: '25px', padding: '22px', background: MONO_NARANJA, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900', fontSize: '20px', cursor: 'pointer' }}>CONFIRMAR PEDIDO 👨‍🍳</button>
+            <button onClick={procesarPedido} style={{ width: '100%', marginTop: '20px', padding: '20px', background: MONO_NARANJA, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900' }}>CONFIRMAR 👨‍🍳</button>
           </div>
         )}
 
         {mostrarLogin && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <div style={{ background: 'white', padding: '40px', borderRadius: '35px', textAlign: 'center', maxWidth: '340px', width: '100%' }}>
-              <h3>Acceso Mono Admin</h3>
-              <input type="password" placeholder="PIN" onChange={e => setPinInput(e.target.value)} style={{ padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '22px', width: '100%', border: '1px solid #ddd', boxSizing: 'border-box' }} />
-              <button onClick={() => { if (pinInput === "mono2026") { setIsAdmin(true); setMostrarLogin(false); } else { alert("PIN Erróneo"); } }} style={{ display: 'block', width: '100%', marginTop: '15px', padding: '18px', background: MONO_NARANJA, color: 'white', borderRadius: '15px', border: 'none', fontWeight: 'bold' }}>Entrar</button>
-              <button onClick={() => setMostrarLogin(false)} style={{ marginTop: '15px', background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}>Cerrar</button>
+            <div style={{ background: 'white', padding: '40px', borderRadius: '35px', textAlign: 'center' }}>
+              <input type="password" placeholder="PIN" onChange={e => setPinInput(e.target.value)} style={{ padding: '18px', borderRadius: '15px' }} />
+              <button onClick={() => { if (pinInput === "mono2026") { setIsAdmin(true); setMostrarLogin(false); } }} style={{ display: 'block', width: '100%', marginTop: '10px', padding: '18px', background: MONO_NARANJA, color: 'white', border: 'none', borderRadius: '15px' }}>Entrar</button>
             </div>
           </div>
         )}
 
         {agradecimiento && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: MONO_NARANJA, zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white', textAlign: 'center', padding: '20px' }}>
-            <div>
-              <h1 style={{fontSize:'3.5rem', margin:0}}>¡Listo!</h1>
-              <p>Tu pedido está en cocina.</p>
-              <button onClick={() => setAgradecimiento(false)} style={{ marginTop: '40px', padding: '18px 50px', borderRadius: '35px', border: 'none', background: 'white', color: MONO_NARANJA, fontWeight: '900', cursor: 'pointer' }}>Volver al Menú</button>
-            </div>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: MONO_NARANJA, zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white' }}>
+            <div style={{ textAlign: 'center' }}><h1>¡Listo!</h1><button onClick={() => setAgradecimiento(false)} style={{ marginTop: '20px', padding: '15px 40px', borderRadius: '30px', border: 'none', background: 'white', color: MONO_NARANJA, fontWeight: 'bold' }}>Cerrar</button></div>
           </div>
         )}
       </div>

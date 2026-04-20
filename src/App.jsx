@@ -101,14 +101,14 @@ export default function App() {
                    numPendientes <= 8 ? { t: "Cocina con Flujo", c: MONO_AMARILLO, m: "15-20 min" } :
                    { t: "Cocina a Tope", c: MONO_ROJO, m: "25-30 min" };
 
-  // ✅ Sincronización robusta: Evita error #31 verificando tipos de datos
+  // ✅ SINCRONIZACIÓN CORREGIDA (Evita Error #31)
   useEffect(() => {
     const q = query(collection(db, "productos"), orderBy("categoria", "asc"));
     return onSnapshot(q, (s) => {
       const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
       setMenuFB(data);
       if (s.empty) {
-        productosBase.forEach(p => setDoc(doc(db, "productos", p.id), p));
+        productosBase.forEach(async (p) => await setDoc(doc(db, "productos", p.id), p));
       }
     });
   }, []);
@@ -155,10 +155,11 @@ export default function App() {
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
-    const precioF = p.precio || (sel.tamano ? sel.tamano.p : 0);
+    // Si tiene precio en base de datos > 0, usamos ese. Si no, usamos el del tamaño.
+    const precioBase = p.precio > 0 ? p.precio : (sel.tamano ? sel.tamano.p : 0);
     const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
     const idUnico = Date.now();
-    setPedido(prev => [...prev, { idUnico, nombre: p.nombre, cantidad: cant, subtotal: precioF * cant, detalle: det }]);
+    setPedido(prev => [...prev, { idUnico, nombre: String(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
   };
 
   const eliminarDelCarrito = (idUnico) => {
@@ -251,7 +252,7 @@ export default function App() {
                     <tbody>
                       {menuFB.map(p => (
                         <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '15px', fontWeight: 'bold' }}>{typeof p.nombre === 'object' ? p.nombre.nombre : p.nombre}</td>
+                          <td style={{ padding: '15px', fontWeight: 'bold' }}>{String(p.nombre)}</td>
                           <td style={{ padding: '15px' }}>
                             <input 
                               type="number" 
@@ -286,8 +287,8 @@ export default function App() {
                     </div>
                     {p.productos.map((it, i) => (
                       <div key={i} style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {typeof it.nombre === 'object' ? 'Producto' : it.nombre}</div>
-                        {it.detalle && typeof it.detalle === 'string' && <div style={{ color: '#666', fontSize: '15px' }}>{it.detalle}</div>}
+                        <div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {String(it.nombre)}</div>
+                        {it.detalle && <div style={{ color: '#666', fontSize: '15px' }}>{String(it.detalle)}</div>}
                         {it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold', fontSize: '16px' }}>📝 {it.nota}</div>}
                       </div>
                     ))}
@@ -315,19 +316,6 @@ export default function App() {
                     </div>
                   );
                 })}
-                <div style={{ gridColumn: '1/-1', marginTop: '30px' }}>
-                  <h3>🛵 Domicilios por Cobrar</h3>
-                  <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
-                    {pedidosFB.filter(p => p.tipo === "domicilio" && p.estado !== "pagado").map(p => (
-                      <div key={p.id} style={{ minWidth: '240px', background: 'white', padding: '20px', borderRadius: '25px', border: `2px solid ${MONO_AZUL}` }}>
-                        <strong>{p.nombre}</strong><br />
-                        <small>{p.ubicacion}</small><br />
-                        <span style={{ fontSize: '22px', fontWeight: '900' }}>${p.total?.toLocaleString()}</span>
-                        <button onClick={() => actualizarEstado(p.id, 'pagado')} style={{ width: '100%', marginTop: '12px', background: MONO_VERDE, color: 'white', border: 'none', borderRadius: '12px', padding: '10px', fontWeight: 'bold', cursor: 'pointer' }}>RECIBÍ PAGO ✅</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
 
@@ -340,10 +328,10 @@ export default function App() {
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
                     const qrUrl = `${baseUrl.replace(/\/$/, "")}?mesa=${n}`;
                     return (
-                      <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
-                        <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>MESA {n}</strong>
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} alt={`QR Mesa ${n}`} style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} />
-                        <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>Fritos El Mono 🐒</p>
+                      <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px' }}>
+                        <strong style={{ fontSize: '20px' }}>MESA {n}</strong><br/>
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} style={{ width: '180px', margin: '15px 0' }} />
+                        <p style={{ fontSize: '10px', color: '#999' }}>Fritos El Mono 🐒</p>
                       </div>
                     );
                   })}
@@ -352,14 +340,12 @@ export default function App() {
             )}
 
             {tabActiva === "caja" && (
-              <div style={{ background: 'white', padding: '40px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
                 <h2 style={{ color: MONO_NARANJA }}>Cuadre de Turno 📊</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px', marginBottom: '40px' }}>
-                  <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
-                    <div style={{ fontSize: '42px', fontWeight: '950' }}>${tVendido.toLocaleString()}</div>
-                  </div>
+                <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
+                   <div style={{ fontSize: '42px', fontWeight: '950' }}>${tVendido.toLocaleString()}</div>
                 </div>
-                <button onClick={() => { if (window.confirm("¿Reiniciar Turno?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold', border: 'none', fontSize: '18px', cursor: 'pointer' }}>FINALIZAR DÍA 🏁</button>
+                <button onClick={() => { if (window.confirm("¿Reiniciar Turno?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', marginTop: '20px', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>FINALIZAR DÍA 🏁</button>
               </div>
             )}
           </div>
@@ -401,26 +387,44 @@ export default function App() {
             .map(p => {
             const sel = selecciones[p.id] || {};
             const cant = cantidades[p.id] || 1;
-            const pActual = p.tamanos ? (sel.tamano?.p || p.tamanos[0].p) : (p.precio || 0);
-            const pNombre = typeof p.nombre === 'object' ? p.nombre.nombre : p.nombre;
+            // ✅ Lógica de precio SaaS: si Admin puso un precio fijo, manda ese. Si no, manda el del tamaño.
+            const pActual = p.precio > 0 ? p.precio : (p.tamanos ? (sel.tamano?.p || p.tamanos[0].p) : (p.precio || 0));
             return (
               <div key={p.id} className="card-hover" style={{ background: 'white', borderRadius: '35px', overflow: 'hidden', position: 'relative', opacity: p.disponible ? 1 : 0.5 }}>
-                {!p.disponible && (
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>
-                )}
+                {!p.disponible && <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>}
                 <div style={{ height: '140px', background: `url(${p.imagen}) center/cover` }} />
                 <div style={{ padding: '15px', textAlign: 'center' }}>
-                  <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{pNombre}</h3>
-                  <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px' }}>${pActual.toLocaleString()}</div>
+                  <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{String(p.nombre)}</h3>
+                  <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px', marginBottom: '10px' }}>${pActual.toLocaleString()}</div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', margin: '10px 0' }}>
-                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', cursor: 'pointer' }}>-</button>
+                  {p.opciones && (
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
+                      <option>Sabor...</option>
+                      {p.opciones.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  )}
+
+                  {/* ✅ FIX PARA BEBIDAS: Soporte para Sabores */}
+                  {p.sabores && (
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
+                      <option>Sabor...</option>
+                      {p.sabores.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
+
+                  {p.tamanos && (
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
+                      <option>Tamaño...</option>
+                      {p.tamanos.map(t => <option key={t.n} value={t.n}>{t.n} (${t.p.toLocaleString()})</option>)}
+                    </select>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '10px' }}>
+                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>-</button>
                     <strong style={{ fontSize: '16px' }}>{cant}</strong>
-                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', cursor: 'pointer' }}>+</button>
+                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>+</button>
                   </div>
-                  <button disabled={!p.disponible} onClick={() => agregarAlCarrito(p)} style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#ccc', color: 'white', borderRadius: '18px', border: 'none', fontWeight: 'bold', cursor: p.disponible ? 'pointer' : 'default' }}>
-                    {p.disponible ? "Añadir 🛒" : "Agotado"}
-                  </button>
+                  <button disabled={!p.disponible} onClick={() => agregarAlCarrito(p)} style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#ccc', color: 'white', borderRadius: '18px', border: 'none', fontWeight: 'bold' }}>Añadir 🛒</button>
                 </div>
               </div>
             );
@@ -429,18 +433,18 @@ export default function App() {
 
         {mesa && (
           <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', zIndex: 5000, width: '90%', maxWidth: '450px' }}>
-            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', border: 'none', background: MONO_AZUL, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>🙋 Llamar Mesero</button>
-            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', border: 'none', background: MONO_VERDE, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>💳 Pedir Cuenta</button>
+            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_AZUL, color: 'white', fontWeight: 'bold', border: 'none' }}>🙋 Llamar Mesero</button>
+            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_VERDE, color: 'white', fontWeight: 'bold', border: 'none' }}>💳 Pedir Cuenta</button>
           </div>
         )}
 
         {pedido.length > 0 && (
-          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}` }}>
+          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
             <h2 style={{ textAlign: 'center' }}>🛒 Tu Pedido Nuevo</h2>
             {pedido.map(it => (
               <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #eee' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong style={{fontSize:'18px'}}>{it.cantidad}x</strong> {typeof it.nombre === 'object' ? 'Producto' : it.nombre}</span>
+                  <span><strong style={{fontSize:'18px'}}>{it.cantidad}x</strong> {String(it.nombre)}</span>
                   <strong>${it.subtotal.toLocaleString()}</strong>
                 </div>
                 <input type="text" placeholder="📝 Nota..." value={notas[it.idUnico] || ""} onChange={e => setNotas(prev => ({ ...prev, [it.idUnico]: e.target.value }))} style={{ width: '100%', marginTop: '10px', padding: '12px', borderRadius: '15px', border: '1px solid #eee', boxSizing: 'border-box' }} />
@@ -455,13 +459,14 @@ export default function App() {
             <div style={{ background: 'white', padding: '40px', borderRadius: '35px', textAlign: 'center', maxWidth: '340px', width: '100%' }}>
               <h3>Acceso Mono Admin</h3>
               <input type="password" placeholder="PIN" onChange={e => setPinInput(e.target.value)} style={{ padding: '18px', borderRadius: '15px', textAlign: 'center', fontSize: '22px', width: '100%', border: '1px solid #ddd', boxSizing: 'border-box' }} />
-              <button onClick={() => { if (pinInput === "mono2026") { setIsAdmin(true); setMostrarLogin(false); } else { alert("PIN Erróneo"); } }} style={{ display: 'block', width: '100%', marginTop: '15px', padding: '18px', background: MONO_NARANJA, color: 'white', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Entrar</button>
+              <button onClick={() => { if (pinInput === "mono2026") { setIsAdmin(true); setMostrarLogin(false); } else { alert("PIN Erróneo"); } }} style={{ display: 'block', width: '100%', marginTop: '15px', padding: '18px', background: MONO_NARANJA, color: 'white', borderRadius: '15px', border: 'none', fontWeight: 'bold' }}>Entrar</button>
+              <button onClick={() => setMostrarLogin(false)} style={{ marginTop: '15px', background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}>Cerrar</button>
             </div>
           </div>
         )}
 
         {agradecimiento && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: MONO_NARANJA, zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white', textAlign: 'center' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: MONO_NARANJA, zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white', textAlign: 'center', padding: '20px' }}>
             <div>
               <h1 style={{fontSize:'3.5rem', margin:0}}>¡Listo!</h1>
               <p>Tu pedido está en cocina.</p>

@@ -73,7 +73,7 @@ export default function App() {
   const [tabActiva, setTabActiva] = useState("pedidos");
   const [pedidosFB, setPedidosFB] = useState([]);
   const [alertasFB, setAlertasFB] = useState([]);
-  const [menuFB, setMenuFB] = useState([]); // ✅ Estado para sincronizar el menú dinámico
+  const [menuFB, setMenuFB] = useState([]); // ✅ Para sincronizar cambios del SaaS
   const [pedido, setPedido] = useState([]);
   const [notas, setNotas] = useState({});
   const [mesa, setMesa] = useState(null);
@@ -101,26 +101,25 @@ export default function App() {
                    numPendientes <= 8 ? { t: "Cocina con Flujo", c: MONO_AMARILLO, m: "15-20 min" } :
                    { t: "Cocina a Tope", c: MONO_ROJO, m: "25-30 min" };
 
-  // ✅ NUEVO: Sincronización del Inventario con Firebase
+  // ✅ NUEVO: Sincronización del Inventario
   useEffect(() => {
     const q = query(collection(db, "productos"), orderBy("categoria", "asc"));
     return onSnapshot(q, (s) => {
       const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
       setMenuFB(data);
-      // Si la base de datos está vacía, la poblamos con los productos base
-      if (data.length === 0) {
-        productosBase.forEach(p => setDoc(doc(db, "productos", p.id), p));
+      if (s.empty) {
+        productosBase.forEach(async (p) => await setDoc(doc(db, "productos", p.id), p));
       }
     });
   }, []);
 
-  // ✅ NUEVO: Controladores de Precio y Switch
-  const toggleDisponibilidad = async (id, estadoActual) => {
-    await updateDoc(doc(db, "productos", id), { disponible: !estadoActual });
+  // ✅ NUEVO: Funciones de Control SaaS
+  const toggleDisponibilidad = async (id, estado) => {
+    await updateDoc(doc(db, "productos", id), { disponible: !estado });
   };
 
-  const actualizarPrecio = async (id, nuevoPrecio) => {
-    const p = parseInt(nuevoPrecio);
+  const actualizarPrecio = async (id, valor) => {
+    const p = parseInt(valor);
     if (!isNaN(p)) await updateDoc(doc(db, "productos", id), { precio: p });
   };
 
@@ -238,7 +237,7 @@ export default function App() {
               <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📊 CAJA</button>
             </div>
 
-            {/* ✅ NUEVA VISTA DE GESTIÓN (Switches y Precios) */}
+            {/* ✅ NUEVA VISTA GESTIÓN (SaaS) */}
             {tabActiva === "gestion" && (
               <div style={{ background: 'white', padding: '30px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                 <h2 style={{ color: MONO_TEXTO }}>Inventario y Precios 📋</h2>
@@ -260,7 +259,7 @@ export default function App() {
                               type="number" 
                               defaultValue={p.precio} 
                               onBlur={(e) => actualizarPrecio(p.id, e.target.value)}
-                              style={{ width: '100px', padding: '8px', borderRadius: '10px', border: '1px solid #ddd' }}
+                              style={{ width: '100px', padding: '8px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '16px' }}
                             />
                           </td>
                           <td style={{ padding: '15px' }}>
@@ -343,46 +342,46 @@ export default function App() {
               </div>
             )}
 
-           {tabActiva === "qrs" && (
-  <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
-    <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
-    <p>Verifica que la dirección de tu app sea correcta (asegúrate de que incluya el https://):</p>
-    <input 
-      type="text" 
-      value={baseUrl} 
-      onChange={(e) => setBaseUrl(e.target.value)} 
-      placeholder="https://tu-app.web.app"
-      style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '2px solid #ddd', marginBottom: '20px', fontSize: '16px' }} 
-    />
-    <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>🖨️ Imprimir Códigos</button>
-    
-    <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
-        const qrUrl = `${baseUrl.replace(/\/$/, "")}?mesa=${n}`;
-        return (
-          <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
-            <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>MESA {n}</strong>
-            <img 
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} 
-              alt={`QR Mesa ${n}`} 
-              style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} 
-            />
-            <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>Fritos El Mono 🐒</p>
-          </div>
-        );
-      })}
-      <div style={{ textAlign: 'center', padding: '20px', border: '2px solid #eee', borderRadius: '25px', background: '#fffcf5' }}>
-        <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>DOMICILIOS</strong>
-        <img 
-          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(baseUrl)}`} 
-          alt="QR Domicilio" 
-          style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} 
-        />
-        <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>¡Pide desde casa! 🛵</p>
-      </div>
-    </div>
-  </div>
-)}
+            {tabActiva === "qrs" && (
+              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
+                <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
+                <p>Verifica que la dirección de tu app sea correcta (asegúrate de que incluya el https://):</p>
+                <input 
+                  type="text" 
+                  value={baseUrl} 
+                  onChange={(e) => setBaseUrl(e.target.value)} 
+                  placeholder="https://tu-app.web.app"
+                  style={{ width: '100%', padding: '15px', borderRadius: '15px', border: '2px solid #ddd', marginBottom: '20px', fontSize: '16px' }} 
+                />
+                <button onClick={() => window.print()} style={{ background: MONO_NARANJA, color: 'white', border: 'none', padding: '15px 30px', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>🖨️ Imprimir Códigos</button>
+                
+                <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
+                    const qrUrl = `${baseUrl.replace(/\/$/, "")}?mesa=${n}`;
+                    return (
+                      <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
+                        <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>MESA {n}</strong>
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} 
+                          alt={`QR Mesa ${n}`} 
+                          style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} 
+                        />
+                        <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>Fritos El Mono 🐒</p>
+                      </div>
+                    );
+                  })}
+                  <div style={{ textAlign: 'center', padding: '20px', border: '2px solid #eee', borderRadius: '25px', background: '#fffcf5' }}>
+                    <strong style={{ fontSize: '20px', display: 'block', marginBottom: '10px' }}>DOMICILIOS</strong>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(baseUrl)}`} 
+                      alt="QR Domicilio" 
+                      style={{ width: '100%', maxWidth: '180px', minHeight: '180px', backgroundColor: '#f9f9f9' }} 
+                    />
+                    <p style={{ fontSize: '10px', color: '#999', marginTop: '10px' }}>¡Pide desde casa! 🛵</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {tabActiva === "caja" && (
               <div style={{ background: 'white', padding: '40px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
@@ -441,7 +440,7 @@ export default function App() {
           ))}
         </div>
 
-        {/* ✅ TARJETAS DE PRODUCTO DINÁMICAS (Ocultan si están agotados) */}
+        {/* ✅ TARJETAS DE PRODUCTO DINÁMICAS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '20px', padding: '0 20px' }}>
           {(menuFB.length > 0 ? menuFB : productosBase)
             .filter(p => p.categoria === categoriaActiva)
@@ -460,7 +459,6 @@ export default function App() {
               }}>
                 {p.popular && p.disponible && <div style={{ position: 'absolute', top: '15px', left: '15px', background: MONO_NARANJA, color: 'white', padding: '5px 12px', borderRadius: '15px', fontSize: '10px', fontWeight: 'bold', zIndex: 10 }}>🔥 POPULAR</div>}
                 
-                {/* Overlay si está agotado */}
                 {!p.disponible && (
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>
                 )}

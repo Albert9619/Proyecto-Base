@@ -73,6 +73,7 @@ export default function App() {
   const [tabActiva, setTabActiva] = useState("pedidos");
   const [pedidosFB, setPedidosFB] = useState([]);
   const [alertasFB, setAlertasFB] = useState([]);
+  const [menuFB, setMenuFB] = useState([]); // ✅ Estado para sincronizar el menú dinámico
   const [pedido, setPedido] = useState([]);
   const [notas, setNotas] = useState({});
   const [mesa, setMesa] = useState(null);
@@ -87,8 +88,6 @@ export default function App() {
   const [verPrecuenta, setVerPrecuenta] = useState(false);
   const [agradecimiento, setAgradecimiento] = useState(false);
   const [alertaEnviada, setAlertaEnviada] = useState(null);
-  
-  // ✅ NUEVO: Base URL para los QRs
   const [baseUrl, setBaseUrl] = useState(window.location.origin);
 
   const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
@@ -101,6 +100,29 @@ export default function App() {
   const workload = numPendientes <= 3 ? { t: "Cocina Despejada", c: MONO_VERDE, m: "5-10 min" } :
                    numPendientes <= 8 ? { t: "Cocina con Flujo", c: MONO_AMARILLO, m: "15-20 min" } :
                    { t: "Cocina a Tope", c: MONO_ROJO, m: "25-30 min" };
+
+  // ✅ NUEVO: Sincronización del Inventario con Firebase
+  useEffect(() => {
+    const q = query(collection(db, "productos"), orderBy("categoria", "asc"));
+    return onSnapshot(q, (s) => {
+      const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMenuFB(data);
+      // Si la base de datos está vacía, la poblamos con los productos base
+      if (data.length === 0) {
+        productosBase.forEach(p => setDoc(doc(db, "productos", p.id), p));
+      }
+    });
+  }, []);
+
+  // ✅ NUEVO: Controladores de Precio y Switch
+  const toggleDisponibilidad = async (id, estadoActual) => {
+    await updateDoc(doc(db, "productos", id), { disponible: !estadoActual });
+  };
+
+  const actualizarPrecio = async (id, nuevoPrecio) => {
+    const p = parseInt(nuevoPrecio);
+    if (!isNaN(p)) await updateDoc(doc(db, "productos", id), { precio: p });
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -210,10 +232,61 @@ export default function App() {
 
             <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }} className="scroll-hide">
               <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: numPendientes > 0 ? `4px solid ${MONO_ROJO}` : 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>👨‍🍳 COCINA ({numPendientes})</button>
+              <button onClick={() => setTabActiva("gestion")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "gestion" ? MONO_AZUL : "white", color: tabActiva === "gestion" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📦 GESTIÓN</button>
               <button onClick={() => setTabActiva("mesas")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "mesas" ? MONO_NARANJA : "white", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>💰 COBROS</button>
               <button onClick={() => setTabActiva("qrs")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "qrs" ? MONO_AZUL : "white", color: tabActiva === "qrs" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📌 QRs</button>
               <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '20px', fontWeight: 'bold', border: 'none', cursor: 'pointer', whiteSpace:'nowrap' }}>📊 CAJA</button>
             </div>
+
+            {/* ✅ NUEVA VISTA DE GESTIÓN (Switches y Precios) */}
+            {tabActiva === "gestion" && (
+              <div style={{ background: 'white', padding: '30px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <h2 style={{ color: MONO_TEXTO }}>Inventario y Precios 📋</h2>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #eee' }}>
+                        <th style={{ padding: '15px' }}>Producto</th>
+                        <th style={{ padding: '15px' }}>Precio ($)</th>
+                        <th style={{ padding: '15px' }}>Disponibilidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {menuFB.map(p => (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '15px', fontWeight: 'bold' }}>{p.nombre}</td>
+                          <td style={{ padding: '15px' }}>
+                            <input 
+                              type="number" 
+                              defaultValue={p.precio} 
+                              onBlur={(e) => actualizarPrecio(p.id, e.target.value)}
+                              style={{ width: '100px', padding: '8px', borderRadius: '10px', border: '1px solid #ddd' }}
+                            />
+                          </td>
+                          <td style={{ padding: '15px' }}>
+                            <button 
+                              onClick={() => toggleDisponibilidad(p.id, p.disponible)}
+                              style={{ 
+                                padding: '10px 20px', 
+                                borderRadius: '30px', 
+                                border: 'none', 
+                                background: p.disponible ? MONO_VERDE : MONO_ROJO, 
+                                color: 'white', 
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }}
+                            >
+                              {p.disponible ? "HABILITADO" : "AGOTADO"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {tabActiva === "pedidos" && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '25px' }}>
@@ -270,7 +343,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ✅ NUEVA PESTAÑA QRS */}
            {tabActiva === "qrs" && (
   <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
     <h2 style={{ color: MONO_NARANJA }}>Generador de Códigos QR 📌</h2>
@@ -286,7 +358,6 @@ export default function App() {
     
     <div className="qr-grid-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '30px' }}>
       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
-        // Aseguramos que la URL sea válida antes de mandarla a la API
         const qrUrl = `${baseUrl.replace(/\/$/, "")}?mesa=${n}`;
         return (
           <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px', background: 'white' }}>
@@ -370,40 +441,57 @@ export default function App() {
           ))}
         </div>
 
-        {/* TARJETAS DE PRODUCTO */}
+        {/* ✅ TARJETAS DE PRODUCTO DINÁMICAS (Ocultan si están agotados) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '20px', padding: '0 20px' }}>
-          {productosBase.filter(p => p.categoria === categoriaActiva).map(p => {
+          {(menuFB.length > 0 ? menuFB : productosBase)
+            .filter(p => p.categoria === categoriaActiva)
+            .map(p => {
             const sel = selecciones[p.id] || {};
             const cant = cantidades[p.id] || 1;
             const pActual = p.tamanos ? (sel.tamano?.p || p.tamanos[0].p) : (p.precio || 0);
             return (
-              <div key={p.id} className="card-hover" style={{ background: 'white', borderRadius: '35px', overflow: 'hidden', boxShadow: '0 10px 20px rgba(0,0,0,0.03)', position: 'relative' }}>
-                {p.popular && <div style={{ position: 'absolute', top: '15px', left: '15px', background: MONO_NARANJA, color: 'white', padding: '5px 12px', borderRadius: '15px', fontSize: '10px', fontWeight: 'bold', zIndex: 10 }}>🔥 POPULAR</div>}
+              <div key={p.id} className="card-hover" style={{ 
+                background: 'white', 
+                borderRadius: '35px', 
+                overflow: 'hidden', 
+                boxShadow: '0 10px 20px rgba(0,0,0,0.03)', 
+                position: 'relative',
+                opacity: p.disponible ? 1 : 0.5 
+              }}>
+                {p.popular && p.disponible && <div style={{ position: 'absolute', top: '15px', left: '15px', background: MONO_NARANJA, color: 'white', padding: '5px 12px', borderRadius: '15px', fontSize: '10px', fontWeight: 'bold', zIndex: 10 }}>🔥 POPULAR</div>}
+                
+                {/* Overlay si está agotado */}
+                {!p.disponible && (
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>
+                )}
+
                 <div style={{ height: '140px', background: `url(${p.imagen}) center/cover`, borderBottom: '4px solid #fffcf5' }} />
                 <div style={{ padding: '15px', textAlign: 'center' }}>
                   <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{p.nombre}</h3>
                   <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px', marginBottom: '10px' }}>${pActual.toLocaleString()}</div>
                   
                   {p.opciones && (
-                    <select onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
                       <option>Sabor...</option>
                       {p.opciones.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   )}
 
                   {p.tamanos && (
-                    <select onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
+                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px', background: '#f8fafc' }}>
                       <option>Tamaño...</option>
                       {p.tamanos.map(t => <option key={t.n} value={t.n}>{t.n} (${t.p.toLocaleString()})</option>)}
                     </select>
                   )}
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '10px' }}>
-                    <button onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>-</button>
+                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>-</button>
                     <strong style={{ fontSize: '16px' }}>{cant}</strong>
-                    <button onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>+</button>
+                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}>+</button>
                   </div>
-                  <button onClick={() => agregarAlCarrito(p)} style={{ width: '100%', padding: '12px', background: MONO_NARANJA, color: 'white', borderRadius: '18px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Añadir 🛒</button>
+                  <button disabled={!p.disponible} onClick={() => agregarAlCarrito(p)} style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#ccc', color: 'white', borderRadius: '18px', border: 'none', fontWeight: 'bold', cursor: p.disponible ? 'pointer' : 'default' }}>
+                    {p.disponible ? "Añadir 🛒" : "Agotado"}
+                  </button>
                 </div>
               </div>
             );

@@ -64,14 +64,13 @@ const ESTADO_LABEL = {
   entregado:  { emoji: "✅", texto: "¡Listo!" },
 };
 
-// ✅ HELPER PARA RENDERIZADO SEGURO
+// HELPERS DE SEGURIDAD
 const safeText = (val) => {
   if (val === null || val === undefined) return "";
   if (typeof val === 'object') return val.nombre || "Error de dato";
   return String(val);
 };
 
-// ✅ HELPER PARA PRECIOS SEGUROS (Evita error toLocaleString)
 const safeMoney = (val) => {
   const n = Number(val);
   return isNaN(n) ? "0" : n.toLocaleString();
@@ -163,7 +162,6 @@ export default function App() {
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
-    // ✅ CORRECCIÓN PRECIO BEBIDAS
     const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
     const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
     setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
@@ -198,6 +196,9 @@ export default function App() {
   const pedidosMesaActual = pedidosFB.filter(p => p.ubicacion === `MESA ${mesa}` && p.estado !== "pagado");
   const totalAcumuladoMesa = pedidosMesaActual.reduce((acc, p) => acc + (p.total || 0), 0);
 
+  // ==========================================
+  // 🔴 VISTA ADMINISTRADOR
+  // ==========================================
   if (isAdmin) {
     const pagados = pedidosFB.filter(p => p.estado === "pagado");
     const vLocal = pagados.filter(p => p.tipo === "mesa").reduce((acc, p) => acc + (p.total || 0), 0);
@@ -211,7 +212,7 @@ export default function App() {
           <div className="no-print" style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h1 style={{ color: MONO_NARANJA, fontSize: '32px', margin: 0 }}>Panel Admin 🐒</h1>
-              <div style={{ background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '20px', fontSize: '20px' }}>Caja: <strong>${safeMoney(tVendido)}</strong></div>
+              <div style={{ background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '20px', fontSize: '20px' }}>Total Hoy: <strong>${safeMoney(tVendido)}</strong></div>
               <button onClick={() => setIsAdmin(false)} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#ddd', fontWeight: 'bold' }}>Salir</button>
             </div>
 
@@ -229,6 +230,23 @@ export default function App() {
               <button onClick={() => setTabActiva("qrs")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "qrs" ? MONO_AZUL : "white", color: tabActiva === "qrs" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>QRs</button>
               <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>CAJA</button>
             </div>
+
+            {tabActiva === "pedidos" && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '25px' }}>
+                {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
+                  <div key={p.id} className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} style={{ background: 'white', padding: '25px', borderRadius: '35px', border: p.estado === 'pendiente' ? `4px solid ${MONO_AMARILLO}` : `4px solid ${MONO_AZUL}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}><span style={{ fontSize: '26px', fontWeight: '900' }}>{safeText(p.ubicacion)}</span><span style={{ fontSize: '18px' }}>{safeText(p.hora)}</span></div>
+                    {p.productos.map((it, i) => (
+                      <div key={i} style={{ marginBottom: '12px' }}><div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {safeText(it.nombre)}</div>{it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold' }}>📝 {safeText(it.nota)}</div>}</div>
+                    ))}
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                      {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{ flex: 1, background: MONO_AZUL, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>FRITAR 👨‍🍳</button>}
+                      {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'entregado')} style={{ flex: 1, background: MONO_VERDE, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>DESPACHAR ✅</button>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {tabActiva === "gestion" && (
               <div style={{ background: 'white', padding: '30px', borderRadius: '40px' }}>
@@ -248,23 +266,6 @@ export default function App() {
               </div>
             )}
 
-            {tabActiva === "pedidos" && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '25px' }}>
-                {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
-                  <div key={p.id} className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} style={{ background: 'white', padding: '25px', borderRadius: '35px', border: p.estado === 'pendiente' ? `4px solid ${MONO_AMARILLO}` : `4px solid ${MONO_AZUL}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}><span style={{ fontSize: '26px', fontWeight: '900' }}>{safeText(p.ubicacion)}</span><span style={{ fontSize: '18px' }}>{safeText(p.hora)}</span></div>
-                    {p.productos.map((it, i) => (
-                      <div key={i} style={{ marginBottom: '12px' }}><div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {safeText(it.nombre)}</div>{it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold' }}>📝 {safeText(it.nota)}</div>}</div>
-                    ))}
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                      {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{ flex: 1, background: MONO_AZUL, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>FRITAR 👨‍🍳</button>}
-                      {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'entregado')} style={{ flex: 1, background: MONO_VERDE, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>DESPACHAR ✅</button>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {tabActiva === "mesas" && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => {
@@ -279,6 +280,40 @@ export default function App() {
                     </div>
                   );
                 })}
+                {/* SECCIÓN DE DOMICILIOS POR COBRAR */}
+                <div style={{ gridColumn: '1/-1', marginTop: '30px' }}>
+                  <h3 style={{ paddingLeft: '10px' }}>🛵 Domicilios por Cobrar</h3>
+                  <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }} className="scroll-hide">
+                    {pedidosFB.filter(p => p.tipo === "domicilio" && p.estado !== "pagado").map(p => (
+                      <div key={p.id} style={{ minWidth: '250px', background: 'white', padding: '20px', borderRadius: '25px', border: `2px solid ${MONO_AZUL}` }}>
+                        <strong>{safeText(p.nombre)}</strong><br/><small>{safeText(p.ubicacion)}</small><br/>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold', margin: '10px 0' }}>${safeMoney(p.total)}</div>
+                        <button onClick={() => actualizarEstado(p.id, 'pagado')} style={{ width: '100%', padding: '12px', background: MONO_VERDE, color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold' }}>RECIBÍ PAGO ✅</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tabActiva === "caja" && (
+              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
+                <h2 style={{ color: MONO_NARANJA }}>Cuadre de Turno 📊</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+                  <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
+                    <small style={{ color: '#666' }}>RECAUDO TOTAL</small>
+                    <div style={{ fontSize: '42px', fontWeight: '950' }}>${safeMoney(tVendido)}</div>
+                  </div>
+                  <div style={{ padding: '25px', background: '#f0fdf4', borderRadius: '25px', border: `2px solid ${MONO_VERDE}`, textAlign: 'center' }}>
+                    <small style={{ color: '#666' }}>VENTAS LOCAL</small>
+                    <div style={{ fontSize: '28px', fontWeight: 'bold' }}>${safeMoney(vLocal)}</div>
+                  </div>
+                  <div style={{ padding: '25px', background: '#eff6ff', borderRadius: '25px', border: `2px solid ${MONO_AZUL}`, textAlign: 'center' }}>
+                    <small style={{ color: '#666' }}>VENTAS DOMICILIO</small>
+                    <div style={{ fontSize: '28px', fontWeight: 'bold' }}>${safeMoney(vDomi)}</div>
+                  </div>
+                </div>
+                <button onClick={() => { if (window.confirm("¿Reiniciar Turno?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold', border: 'none', fontSize: '18px' }}>FINALIZAR DÍA Y LIMPIAR CAJA 🏁</button>
               </div>
             )}
 
@@ -291,20 +326,10 @@ export default function App() {
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                     <div key={n} style={{ textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '25px' }}>
                       <strong>MESA {n}</strong><br/>
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(baseUrl.replace(/\/$/, "") + "?mesa=" + n)}`} style={{ width: '180px' }} />
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(baseUrl.replace(/\/$/, "") + "?mesa=" + n)}`} style={{ width: '180px', marginTop: '15px' }} />
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {tabActiva === "caja" && (
-              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
-                <h2>Cuadre de Turno 📊</h2>
-                <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
-                  <span>TOTAL RECAUDADO</span><div style={{ fontSize: '42px', fontWeight: '950' }}>${safeMoney(tVendido)}</div>
-                </div>
-                <button onClick={() => { if (window.confirm("¿Reiniciar?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', marginTop: '30px', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold' }}>FINALIZAR DÍA 🏁</button>
               </div>
             )}
           </div>
@@ -313,6 +338,9 @@ export default function App() {
     );
   }
 
+  // ==========================================
+  // 🟡 VISTA CLIENTE
+  // ==========================================
   return (
     <>
       <style>{pulseStyle}</style>
@@ -338,7 +366,6 @@ export default function App() {
           {(menuFB.length > 0 ? menuFB : productosBase).filter(p => p.categoria === categoriaActiva).map(p => {
             const sel = selecciones[p.id] || {};
             const cant = cantidades[p.id] || 1;
-            // ✅ CORRECCIÓN FINAL PRECIO BEBIDAS
             const pActual = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
             return (
               <div key={p.id} className="card-hover" style={{ background: 'white', borderRadius: '35px', overflow: 'hidden', position: 'relative', opacity: p.disponible ? 1 : 0.5 }}>
@@ -379,7 +406,7 @@ export default function App() {
         )}
 
         {pedido.length > 0 && (
-          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}` }}>
+          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
             <h2 style={{ textAlign: 'center' }}>🛒 Tu Pedido</h2>
             {pedido.map(it => (
               <div key={it.idUnico} style={{ padding: '10px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
@@ -387,6 +414,9 @@ export default function App() {
                 <span><strong>${safeMoney(it.subtotal)}</strong></span>
               </div>
             ))}
+            {!mesa && (
+               <input type="text" placeholder="📍 Dirección de entrega..." value={direccion} onChange={(e) => setDireccion(e.target.value)} style={{ width: '100%', padding: '15px', marginTop: '15px', borderRadius: '15px', border: errorDireccion ? `2px solid ${MONO_ROJO}` : '1px solid #eee' }} />
+            )}
             <button onClick={procesarPedido} style={{ width: '100%', marginTop: '20px', padding: '20px', background: MONO_NARANJA, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900' }}>CONFIRMAR 👨‍🍳</button>
           </div>
         )}
@@ -396,13 +426,14 @@ export default function App() {
             <div style={{ background: 'white', padding: '40px', borderRadius: '35px', textAlign: 'center' }}>
               <input type="password" placeholder="PIN" onChange={e => setPinInput(e.target.value)} style={{ padding: '18px', borderRadius: '15px' }} />
               <button onClick={() => { if (pinInput === "mono2026") { setIsAdmin(true); setMostrarLogin(false); } }} style={{ display: 'block', width: '100%', marginTop: '10px', padding: '18px', background: MONO_NARANJA, color: 'white', border: 'none', borderRadius: '15px' }}>Entrar</button>
+              <button onClick={() => setMostrarLogin(false)} style={{ background: 'none', border: 'none', marginTop: '10px', color: '#999' }}>Cerrar</button>
             </div>
           </div>
         )}
 
         {agradecimiento && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: MONO_NARANJA, zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'white' }}>
-            <div style={{ textAlign: 'center' }}><h1>¡Listo!</h1><button onClick={() => setAgradecimiento(false)} style={{ marginTop: '20px', padding: '15px 40px', borderRadius: '30px', border: 'none', background: 'white', color: MONO_NARANJA, fontWeight: 'bold' }}>Cerrar</button></div>
+            <div style={{ textAlign: 'center' }}><h1>¡Listo!</h1><p>Tu pedido está en cocina.</p><button onClick={() => setAgradecimiento(false)} style={{ marginTop: '20px', padding: '15px 40px', borderRadius: '30px', border: 'none', background: 'white', color: MONO_NARANJA, fontWeight: 'bold' }}>Cerrar</button></div>
           </div>
         )}
       </div>

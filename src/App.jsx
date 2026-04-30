@@ -542,14 +542,23 @@ const procesarPedido = async () => {
        {mesa && (
   <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', z_index: 5000, width: '90%', maxWidth: '450px' }}>
     
-    <button 
-      onClick={() => enviarAlerta('mesero')} 
-      className="btn-alerta"
-      style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_AZUL, color: 'white', fontWeight: 'bold', border: 'none' }}
-    >
-      🙋 Llamar Mesero
-    </button>
-
+   <button 
+  onClick={() => enviarAlerta('mesero')} 
+  disabled={alertaEnviada === 'mesero'} // Se bloquea si ya se envió
+  className="btn-alerta"
+  style={{ 
+    flex: 1, 
+    padding: '18px', 
+    borderRadius: '25px', 
+    background: alertaEnviada === 'mesero' ? '#94a3b8' : MONO_AZUL, // Gris si está enviado
+    color: 'white', 
+    fontWeight: 'bold', 
+    border: 'none',
+    opacity: alertaEnviada === 'mesero' ? 0.7 : 1
+  }}
+>
+  {alertaEnviada === 'mesero' ? '🔔 Solicitud enviada' : '🙋 Llamar Mesero'}
+</button>
     <button 
       onClick={() => enviarAlerta('cuenta')} 
       className="btn-alerta"

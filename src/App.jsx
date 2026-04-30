@@ -847,7 +847,8 @@ const generarReporteWhatsApp = () => {
       </button>
     </div>
 
-   {pedido.map(it => (
+   {/* 1. Mapeo de productos (Solo para mostrar los fritos) */}
+{pedido.map(it => (
   <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #f1f5f9' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <div style={{ flex: 1 }}>
@@ -859,24 +860,26 @@ const generarReporteWhatsApp = () => {
         <button onClick={() => eliminarDelCarrito(it.idUnico)} style={{ background: '#fee2e2', border: 'none', color: MONO_ROJO, padding: '8px', borderRadius: '10px' }}>🗑️</button>
       </div>
     </div>
-    
-    {/* Campo para la Nota Personalizada */}
-    <input 
-      type="text" 
-  placeholder="📝 Nota general (ej. sin cebolla, traer cambio de 50k...)" 
-  value={notaPedido} 
-  onChange={(e) => setNotaPedido(e.target.value)} 
-  style={{ 
-    width: '100%', 
-    padding: '15px', 
-    marginTop: '10px', 
-    borderRadius: '15px', 
-    border: '1px solid #e2e8f0', 
-    background: '#f8fafc',
-    boxSizing: 'border-box' }}
-    />
   </div>
-))}
+))} 
+
+{/* 2. La Nota General (FUERA del map para que sea única) */}
+<div style={{ marginTop: '20px' }}>
+  <input 
+    type="text" 
+    placeholder="📝 Nota general (ej. sin cebolla, traer cambio de 50k...)" 
+    value={notaPedido} 
+    onChange={(e) => setNotaPedido(e.target.value)} 
+    style={{ 
+      width: '100%', 
+      padding: '15px', 
+      borderRadius: '15px', 
+      border: '1px solid #e2e8f0', 
+      background: '#f8fafc',
+      boxSizing: 'border-box' 
+    }}
+  />
+</div>
 
     <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #eee', display: 'flex', justifyContent: 'space-between', fontSize: '22px', fontWeight: '900' }}>
       <span>Total:</span>

@@ -272,9 +272,6 @@ const estiloTabAdmin = (activa, color) => ({
     }
   };
 
-  const toggleDisponibilidad = async (id, estadoActual) => {
-    await updateDoc(doc(db, "productos", id), { disponible: !estadoActual });
-  };
 
  
 

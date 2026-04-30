@@ -147,14 +147,7 @@ export default function App() {
     setTimeout(() => setNotificacion(null), 2500);
   };
 
-  const eliminarDelCarrito = (idUnico) => {
-    setPedido(prev => prev.filter(it => it.idUnico !== idUnico));
-    setNotas(prev => {
-      const n = { ...prev };
-      delete n[idUnico];
-      return n;
-    });
-  };
+ 
 
   const vaciarCarrito = () => {
     if (window.confirm("¿Quieres quitar todos los productos del carrito?")) {
@@ -243,15 +236,8 @@ const eliminarDelCarrito = (idUnico) => {
   });
 };
 
-// Para vaciar todo el carrito
-const vaciarCarrito = () => {
-  if (window.confirm("¿Quieres quitar todos los productos del carrito?")) {
-    setPedido([]);
-    setNotas({});
-    localStorage.removeItem('pedido_el_mono');
-    localStorage.removeItem('notas_el_mono');
-  }
-};
+
+
 
   const procesarPedido = async () => {
   if (!mesa && !direccion.trim()) { 

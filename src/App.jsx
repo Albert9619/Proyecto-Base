@@ -148,16 +148,21 @@ export default function App() {
   p.ubicacion === `MESA ${mesa}` && 
   p.estado !== "pagado"
 );
-const estiloTarjetaPremium = {
-  background: "rgba(255, 255, 255, 0.8)",
-  backdropFilter: "blur(10px)",
-  borderRadius: "30px",
-  border: "1px solid rgba(255, 255, 255, 0.3)",
-  padding: "10px",
-  transition: "transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+const estiloTarjetaMela = {
+  background: "rgba(255, 255, 255, 0.7)", // Efecto vidrio
+  backdropFilter: "blur(12px)",           // Desenfoque de fondo
+  WebkitBackdropFilter: "blur(12px)",     // Soporte para iPhone
+  borderRadius: "32px",                   // Bordes ultra suaves
+  border: "1px solid rgba(255, 255, 255, 0.4)", // Brillo en el borde
+  padding: "15px",
+  marginBottom: "20px",
+  boxShadow: "0 15px 35px rgba(0,0,0,0.05)", // Sombra de aire (no pesa)
+  transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+  display: "flex",
+  flexDirection: "column",
+  position: "relative",
   overflow: "hidden"
 };
-
 const totalConsumido = pedidosYaRealizados.reduce((acc, p) => acc + (p.total || 0), 0);
 
   // NUEVOS ESTADOS CORREGIDOS (Para que no den error en el return)
@@ -354,6 +359,12 @@ const procesarPedido = async () => {
               <div style={{ background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '20px', fontSize: '20px' }}>Total Hoy: <strong>${safeMoney(tVendido)}</strong></div>
               <button onClick={() => setIsAdmin(false)} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#ddd', fontWeight: 'bold' }}>Salir</button>
             </div>
+
+            {productosFiltrados.map((p) => (
+  <div key={p.id} style={estiloTarjetaMela} className="card-hover">
+    {/* Aquí va la imagen, el nombre y el precio */}
+  </div>
+))}
 
             {alertasFB.map(a => (
               <div key={a.id} className="alerta-notif" style={{ padding: '20px', borderRadius: '20px', marginBottom: '15px', color: 'white', display: 'flex', justifyContent: 'space-between' }}>

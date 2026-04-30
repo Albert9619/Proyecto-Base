@@ -144,6 +144,7 @@ export default function App() {
   const [alertaEnviada, setAlertaEnviada] = useState(null);
   const [baseUrl, setBaseUrl] = useState(window.location.origin);
   const [enviando, setEnviando] = useState(false);
+  const [telefono, setTelefono] = useState("");
   const pedidosYaRealizados = pedidosFB.filter(p => 
   p.ubicacion === `MESA ${mesa}` && 
   p.estado !== "pagado"
@@ -320,7 +321,7 @@ const eliminarDelCarrito = (idUnico) => {
 
 
 const procesarPedido = async () => {
-  if (!mesa && !direccion.trim()) { 
+  if (!mesa && (!direccion.trim() || !nombre.trim() || !telefono.trim())) { 
     setErrorDireccion(true); 
     return; 
   }
@@ -334,6 +335,7 @@ const procesarPedido = async () => {
 
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
       nombre: safeText(nombre), 
+      telefono: safeText(telefono), //
       ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
       productos: productosConNotas, 
       total, 
@@ -428,22 +430,13 @@ const generarReporteWhatsApp = () => {
               <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>CAJA</button>
             </div>
 
-            {tabActiva === "pedidos" && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '25px' }}>
-                {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
-                  <div key={p.id} className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} style={{ background: 'white', padding: '25px', borderRadius: '35px', border: p.estado === 'pendiente' ? `4px solid ${MONO_AMARILLO}` : `4px solid ${MONO_AZUL}` }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}><span style={{ fontSize: '26px', fontWeight: '900' }}>{safeText(p.ubicacion)}</span><span style={{ fontSize: '18px' }}>{safeText(p.hora)}</span></div>
-                    {p.productos.map((it, i) => (
-                      <div key={i} style={{ marginBottom: '12px' }}><div style={{ fontSize: '22px', fontWeight: '700' }}>{it.cantidad}x {safeText(it.nombre)}</div>{it.nota && <div style={{ background: '#fee2e2', color: MONO_ROJO, padding: '8px', borderRadius: '10px', marginTop: '5px', fontWeight: 'bold' }}>📝 {safeText(it.nota)}</div>}</div>
-                    ))}
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                      {p.estado === 'pendiente' && <button onClick={() => actualizarEstado(p.id, 'preparando')} style={{ flex: 1, background: MONO_AZUL, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>FRITAR 👨‍🍳</button>}
-                      {p.estado === 'preparando' && <button onClick={() => actualizarEstado(p.id, 'entregado')} style={{ flex: 1, background: MONO_VERDE, color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: '900' }}>DESPACHAR ✅</button>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <input 
+  type="tel" 
+  placeholder="📞 Teléfono de contacto" 
+  value={telefono} 
+  onChange={(e) => setTelefono(e.target.value)} 
+  style={{ width: '100%', padding: '15px', marginTop: '10px', borderRadius: '15px', border: '1px solid #eee' }} 
+/>
             
 
             {tabActiva === "gestion" && (
@@ -780,25 +773,29 @@ const generarReporteWhatsApp = () => {
       </button>
     </div>
 
-    {pedido.map(it => (
-      <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 'bold' }}>{it.cantidad}x {safeText(it.nombre)}</div>
-          {it.detalle && <small style={{ color: '#666' }}>{it.detalle}</small>}
-        </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <span style={{ fontWeight: '900', color: MONO_TEXTO }}>${safeMoney(it.subtotal)}</span>
-          <button 
-            onClick={() => eliminarDelCarrito(it.idUnico)}
-            style={{ background: '#fee2e2', border: 'none', color: MONO_ROJO, padding: '10px', borderRadius: '12px', cursor: 'pointer', fontSize: '18px' }}
-            title="Eliminar"
-          >
-            🗑️
-          </button>
-        </div>
+   {pedido.map(it => (
+  <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #f1f5f9' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{it.cantidad}x {safeText(it.nombre)}</div>
+        {it.detalle && <small style={{ color: '#64748b' }}>{it.detalle}</small>}
       </div>
-    ))}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <span style={{ fontWeight: '900', color: MONO_TEXTO }}>${safeMoney(it.subtotal)}</span>
+        <button onClick={() => eliminarDelCarrito(it.idUnico)} style={{ background: '#fee2e2', border: 'none', color: MONO_ROJO, padding: '8px', borderRadius: '10px' }}>🗑️</button>
+      </div>
+    </div>
+    
+    {/* Campo para la Nota Personalizada */}
+    <input 
+      type="text" 
+      placeholder="📝 Nota: ej. sin cebolla, bien frita..." 
+      value={notas[it.idUnico] || ""}
+      onChange={(e) => setNotas({...notas, [it.idUnico]: e.target.value})}
+      style={{ width: '100%', marginTop: '8px', padding: '8px 12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#f8fafc' }}
+    />
+  </div>
+))}
 
     <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #eee', display: 'flex', justifyContent: 'space-between', fontSize: '22px', fontWeight: '900' }}>
       <span>Total:</span>
@@ -806,14 +803,30 @@ const generarReporteWhatsApp = () => {
     </div>
 
     {!mesa && (
-      <input 
-        type="text" 
-        placeholder="📍 Dirección de entrega..." 
-        value={direccion} 
-        onChange={(e) => setDireccion(e.target.value)} 
-        style={{ width: '100%', padding: '15px', marginTop: '15px', borderRadius: '15px', border: errorDireccion ? `2px solid ${MONO_ROJO}` : '1px solid #eee', boxSizing: 'border-box' }} 
-      />
-    )}
+  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <input 
+      type="text" 
+      placeholder="👤 Nombre completo" 
+      value={nombre} 
+      onChange={(e) => setNombre(e.target.value)} 
+      style={{ width: '100%', padding: '15px', borderRadius: '15px', border: errorDireccion && !nombre ? `2px solid ${MONO_ROJO}` : '1px solid #e2e8f0', boxSizing: 'border-box' }} 
+    />
+    <input 
+      type="tel" 
+      placeholder="📞 Teléfono de contacto" 
+      value={telefono} 
+      onChange={(e) => setTelefono(e.target.value)} 
+      style={{ width: '100%', padding: '15px', borderRadius: '15px', border: errorDireccion && !telefono ? `2px solid ${MONO_ROJO}` : '1px solid #e2e8f0', boxSizing: 'border-box' }} 
+    />
+    <input 
+      type="text" 
+      placeholder="📍 Dirección exacta y barrio" 
+      value={direccion} 
+      onChange={(e) => setDireccion(e.target.value)} 
+      style={{ width: '100%', padding: '15px', borderRadius: '15px', border: errorDireccion && !direccion ? `2px solid ${MONO_ROJO}` : '1px solid #e2e8f0', boxSizing: 'border-box' }} 
+    />
+  </div>
+)}
 
     <button 
   onClick={procesarPedido} 

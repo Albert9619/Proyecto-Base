@@ -148,20 +148,30 @@ export default function App() {
   p.ubicacion === `MESA ${mesa}` && 
   p.estado !== "pagado"
 );
+// --- ESTILOS DE PRODUCTOS PREMIUM ---
 const estiloTarjetaMela = {
-  background: "rgba(255, 255, 255, 0.7)", // Efecto vidrio
-  backdropFilter: "blur(12px)",           // Desenfoque de fondo
-  WebkitBackdropFilter: "blur(12px)",     // Soporte para iPhone
-  borderRadius: "32px",                   // Bordes ultra suaves
-  border: "1px solid rgba(255, 255, 255, 0.4)", // Brillo en el borde
+  background: "rgba(255, 255, 255, 0.7)", 
+  backdropFilter: "blur(12px)",           
+  WebkitBackdropFilter: "blur(12px)",     
+  borderRadius: "32px",                   
+  border: "1px solid rgba(255, 255, 255, 0.4)", 
   padding: "15px",
   marginBottom: "20px",
-  boxShadow: "0 15px 35px rgba(0,0,0,0.05)", // Sombra de aire (no pesa)
+  boxShadow: "0 10px 25px rgba(0,0,0,0.03)", 
   transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
   display: "flex",
   flexDirection: "column",
   position: "relative",
-  overflow: "hidden"
+  overflow: "hidden",
+  textAlign: 'left' // Alineación a la izquierda se ve más elegante
+};
+
+const estiloImagenMela = {
+  width: '100%',
+  height: '165px',
+  objectFit: 'cover',
+  borderRadius: '24px', // Imagen un poco más pequeña que la tarjeta para dar aire
+  transition: 'transform 0.5s ease'
 };
 const totalConsumido = pedidosYaRealizados.reduce((acc, p) => acc + (p.total || 0), 0);
 
@@ -523,41 +533,83 @@ const procesarPedido = async () => {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '20px', padding: '0 20px' }}>
-          {(menuFB.length > 0 ? menuFB : productosBase).filter(p => p.categoria === categoriaActiva).map(p => {
-            const sel = selecciones[p.id] || {};
-            const cant = cantidades[p.id] || 1;
-            const pActual = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
-            return (
-              <div key={p.id} className="card-hover" style={{ background: 'white', borderRadius: '35px', overflow: 'hidden', position: 'relative', opacity: p.disponible ? 1 : 0.5 }}>
-                {!p.disponible && <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO }}>AGOTADO ❌</div>}
-                <div style={{ height: '140px', background: `url(${p.imagen}) center/cover` }} />
-                <div style={{ padding: '15px', textAlign: 'center' }}>
-                  <h3 style={{ margin: '0 0 5px', fontSize: '15px', height: '35px' }}>{safeText(p.nombre)}</h3>
-                  <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '18px' }}>${safeMoney(pActual)}</div>
-                  
-                  {p.sabores && (
-                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px' }}>
-                      <option>Sabor...</option>{p.sabores.map(s => <option key={s} value={s}>{safeText(s)}</option>)}
-                    </select>
-                  )}
-                  {p.tamanos && (
-                    <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ width: '100%', padding: '8px', borderRadius: '12px', border: '1px solid #eee', marginBottom: '10px', fontSize: '12px' }}>
-                      <option>Tamaño...</option>{p.tamanos.map(t => <option key={t.n} value={t.n}>{safeText(t.n)} (${safeMoney(t.p)})</option>)}
-                    </select>
-                  )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px', padding: '0 20px' }}>
+  {(menuFB.length > 0 ? menuFB : productosBase).filter(p => p.categoria === categoriaActiva).map(p => {
+    const sel = selecciones[p.id] || {};
+    const cant = cantidades[p.id] || 1;
+    const pActual = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
+    
+    return (
+      <div key={p.id} className="card-hover" style={estiloTarjetaMela}>
+        {/* Badge de Popularidad (Solo si el producto es popular) */}
+        {p.popular && (
+          <div style={{ position: 'absolute', top: '10px', right: '10px', background: MONO_AMARILLO, color: MONO_TEXTO, padding: '4px 12px', borderRadius: '15px', fontSize: '10px', fontWeight: 'bold', zIndex: 10 }}>
+            🔥 TOP
+          </div>
+        )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', margin: '10px 0' }}>
-                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })}>-</button>
-                    <strong>{cant}</strong>
-                    <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })}>+</button>
-                  </div>
-                  <button disabled={!p.disponible} onClick={() => agregarAlCarrito(p)} style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#ccc', color: 'white', borderRadius: '18px', border: 'none', fontWeight: 'bold' }}>Añadir 🛒</button>
-                </div>
-              </div>
-            );
-          })}
+        {/* Capa de Agotado */}
+        {!p.disponible && (
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.6)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO, backdropFilter: 'blur(4px)' }}>
+            AGOTADO ❌
+          </div>
+        )}
+
+        {/* Contenedor de Imagen */}
+        <div style={{ borderRadius: '24px', overflow: 'hidden', marginBottom: '12px' }}>
+          <img 
+            src={p.imagen || 'https://images.unsplash.com/photo-1619177383920-59f776369527?q=80&w=500&auto=format&fit=crop'} 
+            alt={p.nombre} 
+            style={estiloImagenMela} 
+          />
         </div>
+
+        {/* Info del Producto */}
+        <div style={{ padding: '0 5px' }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: '17px', color: '#1e293b', fontWeight: '800', lineHeight: '1.2' }}>
+            {safeText(p.nombre)}
+          </h3>
+          
+          <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '19px', marginBottom: '10px' }}>
+            ${safeMoney(pActual)}
+          </div>
+          
+          {/* Selectores (Sabores/Tamaños) */}
+          {(p.sabores || p.tamanos) && (
+            <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
+              {p.sabores && (
+                <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ flex: 1, padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', background: 'white' }}>
+                  <option>Sabor</option>{p.sabores.map(s => <option key={s} value={s}>{safeText(s)}</option>)}
+                </select>
+              )}
+              {p.tamanos && (
+                <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ flex: 1, padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', background: 'white' }}>
+                  <option>Tam</option>{p.tamanos.map(t => <option key={t.n} value={t.n}>{safeText(t.n)}</option>)}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Controles de Cantidad */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f1f5f9', borderRadius: '15px', padding: '4px 8px', marginBottom: '10px' }}>
+            <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ border: 'none', background: 'none', fontWeight: 'bold', color: MONO_TEXTO, padding: '5px 10px', cursor: 'pointer' }}>-</button>
+            <strong style={{ fontSize: '14px' }}>{cant}</strong>
+            <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ border: 'none', background: 'none', fontWeight: 'bold', color: MONO_TEXTO, padding: '5px 10px', cursor: 'pointer' }}>+</button>
+          </div>
+
+          <button 
+            disabled={!p.disponible} 
+            onClick={() => agregarAlCarrito(p)} 
+            className="btn-confirmar"
+            style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#cbd5e1', color: 'white', borderRadius: '15px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(249,115,22,0.2)' }}
+          >
+            Agregar 🛒
+          </button>
+        </div>
+      </div>
+    );
+  })}
+</div>
 
        {mesa && (
   <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', z_index: 5000, width: '90%', maxWidth: '450px' }}>

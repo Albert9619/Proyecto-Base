@@ -232,7 +232,7 @@ const eliminarDelCarrito = (idUnico) => {
 
 
 
-const agrega
+
   const procesarPedido = async () => {
   if (!mesa && !direccion.trim()) { 
     setErrorDireccion(true); 

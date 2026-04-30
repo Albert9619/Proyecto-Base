@@ -757,77 +757,135 @@ const generarReporteWhatsApp = () => {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px', padding: '0 20px' }}>
+        <div style={{ 
+  display: 'grid', 
+  gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', // Grid más flexible para móvil
+  gap: '15px', 
+  padding: '15px 20px',
+  maxWidth: '1200px',
+  margin: '0 auto'
+}}>
   {(menuFB.length > 0 ? menuFB : productosBase).filter(p => p.categoria === categoriaActiva).map(p => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
     const pActual = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
     
     return (
-      <div key={p.id} className="card-hover" style={estiloTarjetaMela}>
-        {/* Badge de Popularidad (Solo si el producto es popular) */}
+      <div key={p.id} className="card-hover" style={{...estiloTarjetaMela, position: 'relative'}}>
+        
+        {/* Badge de Popularidad: Contraste mejorado */}
         {p.popular && (
-          <div style={{ position: 'absolute', top: '10px', right: '10px', background: MONO_AMARILLO, color: MONO_TEXTO, padding: '4px 12px', borderRadius: '15px', fontSize: '10px', fontWeight: 'bold', zIndex: 10 }}>
+          <div style={{ 
+            position: 'absolute', top: '12px', right: '12px', 
+            background: MONO_AMARILLO, color: '#451a03', // Marrón oscuro para legibilidad
+            padding: '4px 12px', borderRadius: '15px', 
+            fontSize: '10px', fontWeight: '800', zIndex: 10,
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
             🔥 TOP
           </div>
         )}
 
-        {/* Capa de Agotado */}
+        {/* Capa de Agotado: Blur más profesional */}
         {!p.disponible && (
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(255,255,255,0.6)', zIndex: 20, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: MONO_ROJO, backdropFilter: 'blur(4px)' }}>
-            AGOTADO ❌
+          <div style={{ 
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+            background: 'rgba(255,255,255,0.7)', zIndex: 25, 
+            display: 'flex', justifyContent: 'center', alignItems: 'center', 
+            fontWeight: '900', color: MONO_ROJO, backdropFilter: 'blur(3px)',
+            borderRadius: '32px' 
+          }}>
+            <span style={{ transform: 'rotate(-10deg)', border: `3px solid ${MONO_ROJO}`, padding: '5px 10px', borderRadius: '10px' }}>
+              AGOTADO
+            </span>
           </div>
         )}
 
-        {/* Contenedor de Imagen */}
-        <div style={{ borderRadius: '24px', overflow: 'hidden', marginBottom: '12px' }}>
+        {/* Contenedor de Imagen: Altura optimizada para evitar saturación */}
+        <div style={{ borderRadius: '22px', overflow: 'hidden', height: '140px', marginBottom: '12px' }}>
           <img 
             src={p.imagen || 'https://images.unsplash.com/photo-1619177383920-59f776369527?q=80&w=500&auto=format&fit=crop'} 
             alt={p.nombre} 
-            style={estiloImagenMela} 
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }} 
           />
         </div>
 
-        {/* Info del Producto */}
+        {/* Info del Producto: Color Slate 900 para lectura bajo el sol */}
         <div style={{ padding: '0 5px' }}>
-          <h3 style={{ margin: '0 0 4px', fontSize: '17px', color: '#1e293b', fontWeight: '800', lineHeight: '1.2' }}>
+          <h3 style={{ 
+            margin: '0 0 5px', 
+            fontSize: '16px', 
+            color: '#0f172a', // Contraste máximo
+            fontWeight: '700', 
+            lineHeight: '1.2' 
+          }}>
             {safeText(p.nombre)}
           </h3>
           
-          <div style={{ color: MONO_NARANJA, fontWeight: '900', fontSize: '19px', marginBottom: '10px' }}>
+          <div style={{ color: MONO_NARANJA, fontWeight: '800', fontSize: '18px', marginBottom: '12px' }}>
             ${safeMoney(pActual)}
           </div>
           
-          {/* Selectores (Sabores/Tamaños) */}
+          {/* Selectores Estilizados */}
           {(p.sabores || p.tamanos) && (
-            <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
               {p.sabores && (
-                <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} style={{ flex: 1, padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', background: 'white' }}>
+                <select 
+                  disabled={!p.disponible} 
+                  onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, sabor: e.target.value}})} 
+                  style={{ flex: 1, padding: '8px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px', background: 'white', fontWeight: '600' }}
+                >
                   <option>Sabor</option>{p.sabores.map(s => <option key={s} value={s}>{safeText(s)}</option>)}
                 </select>
               )}
               {p.tamanos && (
-                <select disabled={!p.disponible} onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} style={{ flex: 1, padding: '6px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', background: 'white' }}>
+                <select 
+                  disabled={!p.disponible} 
+                  onChange={(e) => setSelecciones({...selecciones, [p.id]: {...sel, tamano: p.tamanos.find(t => t.n === e.target.value)}})} 
+                  style={{ flex: 1, padding: '8px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px', background: 'white', fontWeight: '600' }}
+                >
                   <option>Tam</option>{p.tamanos.map(t => <option key={t.n} value={t.n}>{safeText(t.n)}</option>)}
                 </select>
               )}
             </div>
           )}
 
-          {/* Controles de Cantidad */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f1f5f9', borderRadius: '15px', padding: '4px 8px', marginBottom: '10px' }}>
-            <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} style={{ border: 'none', background: 'none', fontWeight: 'bold', color: MONO_TEXTO, padding: '5px 10px', cursor: 'pointer' }}>-</button>
-            <strong style={{ fontSize: '14px' }}>{cant}</strong>
-            <button disabled={!p.disponible} onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} style={{ border: 'none', background: 'none', fontWeight: 'bold', color: MONO_TEXTO, padding: '5px 10px', cursor: 'pointer' }}>+</button>
+          {/* Controles de Cantidad con diseño minimalista */}
+          <div style={{ 
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+            background: '#f8fafc', borderRadius: '15px', padding: '5px 10px', marginBottom: '12px',
+            border: '1px solid #f1f5f9'
+          }}>
+            <button 
+              disabled={!p.disponible} 
+              onClick={() => setCantidades({ ...cantidades, [p.id]: Math.max(1, cant - 1) })} 
+              style={{ border: 'none', background: 'none', fontWeight: 'bold', color: '#64748b', padding: '5px 10px', fontSize: '18px', cursor: 'pointer' }}
+            >
+              −
+            </button>
+            <strong style={{ fontSize: '15px', color: '#1e293b' }}>{cant}</strong>
+            <button 
+              disabled={!p.disponible} 
+              onClick={() => setCantidades({ ...cantidades, [p.id]: cant + 1 })} 
+              style={{ border: 'none', background: 'none', fontWeight: 'bold', color: '#64748b', padding: '5px 10px', fontSize: '18px', cursor: 'pointer' }}
+            >
+              +
+            </button>
           </div>
 
           <button 
             disabled={!p.disponible} 
             onClick={() => agregarAlCarrito(p)} 
             className="btn-confirmar"
-            style={{ width: '100%', padding: '12px', background: p.disponible ? MONO_NARANJA : '#cbd5e1', color: 'white', borderRadius: '15px', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(249,115,22,0.2)' }}
+            style={{ 
+              width: '100%', padding: '14px', 
+              background: p.disponible ? MONO_NARANJA : '#cbd5e1', 
+              color: 'white', borderRadius: '18px', border: 'none', 
+              fontWeight: '800', fontSize: '14px', cursor: 'pointer',
+              boxShadow: p.disponible ? '0 6px 15px rgba(249,115,22,0.3)' : 'none'
+            }}
           >
-            Agregar 🛒
+            Agregar al Carrito 🛒
           </button>
         </div>
       </div>

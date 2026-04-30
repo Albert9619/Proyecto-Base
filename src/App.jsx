@@ -134,18 +134,24 @@ export default function App() {
     ticketRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const agregarAlCarrito = (p) => {
-    const sel = selecciones[p.id] || {};
-    const cant = cantidades[p.id] || 1;
-    const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
-    const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
-    
-    setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
+const agregarAlCarrito = (p) => {
+  const sel = selecciones[p.id] || {};
+  const cant = cantidades[p.id] || 1;
+  const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
+  const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
+  
+  setPedido(prev => [...prev, { 
+    idUnico: Date.now(), 
+    nombre: safeText(p.nombre), 
+    cantidad: cant, 
+    subtotal: precioBase * cant, 
+    detalle: det 
+  }]);
 
-    // Mostrar notificación
-    setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
-    setTimeout(() => setNotificacion(null), 2500);
-  };
+  // Notificación visual para el cliente
+  setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
+  setTimeout(() => setNotificacion(null), 2500);
+};
 
  
 
@@ -155,7 +161,7 @@ export default function App() {
       setNotas({});
       localStorage.removeItem('pedido_el_mono');
       localStorage.removeItem('notas_el_mono');
-    }
+    }const agrega
   };
 
   const toggleDisponibilidad = async (id, estadoActual) => {
@@ -212,18 +218,6 @@ export default function App() {
     localStorage.setItem('notas_el_mono', JSON.stringify(notas));
 }, [pedido, notas]);
 
- const agregarAlCarrito = (p) => {
-  const sel = selecciones[p.id] || {};
-  const cant = cantidades[p.id] || 1;
-  const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
-  const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
-  
-  setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
-
-  // --- NUEVO: Mostrar notificación temporal ---
-  setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
-  setTimeout(() => setNotificacion(null), 2500); // Desaparece en 2.5 seg
-};
 
   // Para eliminar un solo producto
 const eliminarDelCarrito = (idUnico) => {
@@ -238,7 +232,7 @@ const eliminarDelCarrito = (idUnico) => {
 
 
 
-
+const agrega
   const procesarPedido = async () => {
   if (!mesa && !direccion.trim()) { 
     setErrorDireccion(true); 

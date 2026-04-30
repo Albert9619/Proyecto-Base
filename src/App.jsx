@@ -276,10 +276,7 @@ const estiloTabAdmin = (activa, color) => ({
     await updateDoc(doc(db, "productos", id), { disponible: !estadoActual });
   };
 
-  const actualizarPrecio = async (id, nuevoPrecio) => {
-    const p = parseInt(nuevoPrecio);
-    if (!isNaN(p)) await updateDoc(doc(db, "productos", id), { precio: p });
-  };
+ 
 
   // --- 5. EFECTOS (SIDE EFFECTS) ---
 

@@ -371,7 +371,24 @@ const procesarPedido = async () => {
 
   const pedidosMesaActual = pedidosFB.filter(p => p.ubicacion === `MESA ${mesa}` && p.estado !== "pagado");
   const totalAcumuladoMesa = pedidosMesaActual.reduce((acc, p) => acc + (p.total || 0), 0);
+const generarReporteWhatsApp = () => {
+  const pagados = pedidosFB.filter(p => p.estado === "pagado");
+  const vLocal = pagados.filter(p => p.tipo === "mesa").reduce((acc, p) => acc + (p.total || 0), 0);
+  const vDomi = pagados.filter(p => p.tipo === "domicilio").reduce((acc, p) => acc + (p.total || 0), 0);
+  const tVendido = vLocal + vDomi;
 
+  const mensaje = `*CIERRE DE CAJA - FRITOS EL MONO* 🐒%0A` +
+    `--------------------------------%0A` +
+    `📅 Fecha: ${new Date().toLocaleDateString()}%0A` +
+    `💰 *Ventas Totales: $${safeMoney(tVendido)}*%0A` +
+    `📦 Total Pedidos: ${pedidosFB.length}%0A%0A` +
+    `🏠 Ventas Local: $${safeMoney(vLocal)}%0A` +
+    `🛵 Domicilios: $${safeMoney(vDomi)}%0A` +
+    `--------------------------------%0A` +
+    `Generado por: Ortega Gestión Digital`;
+
+  window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+};
   // ==========================================
   // 🔴 VISTA ADMINISTRADOR
   // ==========================================
@@ -478,40 +495,61 @@ const procesarPedido = async () => {
             )}
 
             {tabActiva === "caja" && (
-              <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
-                <h2 style={{ color: MONO_NARANJA }}>Cuadre de Turno 📊</h2>
+  <div style={{ background: 'white', padding: '30px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+    <h2 style={{ color: MONO_NARANJA, marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      Caja y Finanzas 📊
+    </h2>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-  <div style={estiloCardMétrica(MONO_NARANJA)}>
-    <small>💰 Ventas Totales</small>
-    <h2>${safeMoney(tVendido)}</h2>
+    {/* Tarjetas Principales (KPIs) */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+      <div style={estiloCardMétrica(MONO_NARANJA)}>
+        <small style={{ color: '#64748b', fontWeight: 'bold' }}>💰 VENTAS TOTALES</small>
+        <h2 style={{ margin: '10px 0 0', fontSize: '32px', color: '#1e293b' }}>${safeMoney(tVendido)}</h2>
+      </div>
+      <div style={estiloCardMétrica(MONO_AZUL)}>
+        <small style={{ color: '#64748b', fontWeight: 'bold' }}>📦 PEDIDOS HOY</small>
+        <h2 style={{ margin: '10px 0 0', fontSize: '32px', color: '#1e293b' }}>{pedidosFB.length}</h2>
+      </div>
+      <div style={estiloCardMétrica(MONO_VERDE)}>
+        <small style={{ color: '#64748b', fontWeight: 'bold' }}>📈 TICKET PROMEDIO</small>
+        <h2 style={{ margin: '10px 0 0', fontSize: '32px', color: '#1e293b' }}>
+          ${safeMoney(pedidosFB.length > 0 ? tVendido / pedidosFB.length : 0)}
+        </h2>
+      </div>
+    </div>
+
+    {/* Desglose Detallado */}
+    <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
+      <div style={{ flex: 1, padding: '20px', background: '#f0fdf4', borderRadius: '20px', textAlign: 'center', border: '1px solid #dcfce7' }}>
+        <small style={{ color: MONO_VERDE, fontWeight: 'bold' }}>🏠 VENTAS LOCAL</small>
+        <div style={{ fontSize: '20px', fontWeight: '900' }}>${safeMoney(vLocal)}</div>
+      </div>
+      <div style={{ flex: 1, padding: '20px', background: '#eff6ff', borderRadius: '20px', textAlign: 'center', border: '1px solid #dbeafe' }}>
+        <small style={{ color: MONO_AZUL, fontWeight: 'bold' }}>🛵 DOMICILIOS</small>
+        <div style={{ fontSize: '20px', fontWeight: '900' }}>${safeMoney(vDomi)}</div>
+      </div>
+    </div>
+
+    <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '30px 0' }} />
+
+    {/* Acciones de Cierre */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <button 
+        onClick={generarReporteWhatsApp}
+        style={{ width: '100%', padding: '20px', background: MONO_VERDE, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+      >
+        📲 ENVIAR REPORTE A WHATSAPP
+      </button>
+
+      <button 
+        onClick={() => { if (window.confirm("¿Seguro que quieres cerrar el día? Se borrarán los pedidos actuales.")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} 
+        style={{ width: '100%', padding: '20px', background: MONO_TEXTO, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900', fontSize: '16px', cursor: 'pointer' }}
+      >
+        FINALIZAR DÍA Y LIMPIAR CAJA 🏁
+      </button>
+    </div>
   </div>
-  <div style={estiloCardMétrica(MONO_AZUL)}>
-    <small>📦 Pedidos Hoy</small>
-    <h2>{pedidosFB.length}</h2>
-  </div>
-  <div style={estiloCardMétrica(MONO_VERDE)}>
-    <small>📈 Ticket Promedio</small>
-    <h2>${safeMoney(pedidosFB.length > 0 ? tVendido / pedidosFB.length : 0)}</h2>
-  </div>
-</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-                  <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
-                    <small style={{ color: '#666' }}>RECAUDO TOTAL</small>
-                    <div style={{ fontSize: '42px', fontWeight: '950' }}>${safeMoney(tVendido)}</div>
-                  </div>
-                  <div style={{ padding: '25px', background: '#f0fdf4', borderRadius: '25px', border: `2px solid ${MONO_VERDE}`, textAlign: 'center' }}>
-                    <small style={{ color: '#666' }}>VENTAS LOCAL</small>
-                    <div style={{ fontSize: '28px', fontWeight: 'bold' }}>${safeMoney(vLocal)}</div>
-                  </div>
-                  <div style={{ padding: '25px', background: '#eff6ff', borderRadius: '25px', border: `2px solid ${MONO_AZUL}`, textAlign: 'center' }}>
-                    <small style={{ color: '#666' }}>VENTAS DOMICILIO</small>
-                    <div style={{ fontSize: '28px', fontWeight: 'bold' }}>${safeMoney(vDomi)}</div>
-                  </div>
-                </div>
-                <button onClick={() => { if (window.confirm("¿Reiniciar Turno?")) pagados.forEach(p => deleteDoc(doc(db, "pedidos", p.id))); }} style={{ width: '100%', padding: '25px', background: MONO_TEXTO, color: 'white', borderRadius: '20px', fontWeight: 'bold', border: 'none', fontSize: '18px' }}>FINALIZAR DÍA Y LIMPIAR CAJA 🏁</button>
-              </div>
-            )}
+)}
 
             {tabActiva === "qrs" && (
               <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>

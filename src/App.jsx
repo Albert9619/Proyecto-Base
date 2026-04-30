@@ -25,14 +25,33 @@ const pulseStyle = `
     100% { box-shadow: 0 5px 15px rgba(251,191,36,0.2); transform: scale(1); }
   }
   .pedido-pendiente { animation: mono-pulse 1.6s ease-in-out infinite; }
+
   @keyframes alerta-pulse {
     0%   { transform: scale(1); background: #ef4444; }
     50%  { transform: scale(1.05); background: #b91c1c; }
     100% { transform: scale(1); background: #ef4444; }
   }
   .alerta-notif { animation: alerta-pulse 1s infinite; }
+
   .card-hover:hover { transform: translateY(-5px); transition: 0.3s; }
   .scroll-hide::-webkit-scrollbar { display: none; }
+
+  /* ESTILOS DEL BOTÓN DE CONFIRMACIÓN */
+  .btn-confirmar {
+    transition: all 0.2s ease !important;
+  }
+
+  .btn-confirmar:active {
+    transform: scale(0.95) !important;
+    filter: brightness(0.9);
+  }
+
+  .btn-confirmar:disabled {
+    background: #ccc !important;
+    cursor: not-allowed !important;
+    transform: scale(1) !important;
+  }
+
   @media print {
     .no-print { display: none !important; }
     .print-area { display: block !important; padding: 0 !important; }
@@ -109,6 +128,13 @@ export default function App() {
   const [agradecimiento, setAgradecimiento] = useState(false);
   const [alertaEnviada, setAlertaEnviada] = useState(null);
   const [baseUrl, setBaseUrl] = useState(window.location.origin);
+  const [enviando, setEnviando] = useState(false);
+  const pedidosYaRealizados = pedidosFB.filter(p => 
+  p.ubicacion === `MESA ${mesa}` && 
+  p.estado !== "pagado"
+);
+
+const totalConsumido = pedidosYaRealizados.reduce((acc, p) => acc + (p.total || 0), 0);
 
   // NUEVOS ESTADOS CORREGIDOS (Para que no den error en el return)
   const [notificacion, setNotificacion] = useState(null);
@@ -232,23 +258,18 @@ const eliminarDelCarrito = (idUnico) => {
 
 
 
-  const procesarPedido = async () => {
-  console.log("1. Botón presionado"); // Mensaje de control
-
+const procesarPedido = async () => {
   if (!mesa && !direccion.trim()) { 
-    console.log("2. Error: No hay mesa ni dirección");
     setErrorDireccion(true); 
     return; 
   }
 
+  setEnviando(true); // Bloqueamos el botón
   setErrorDireccion(false);
-  console.log("3. Validaciones pasadas");
 
   try {
     const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
     const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
-
-    console.log("4. Intentando enviar a Firebase...");
 
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
       nombre: safeText(nombre), 
@@ -261,18 +282,23 @@ const eliminarDelCarrito = (idUnico) => {
       tipo: mesa ? "mesa" : "domicilio"
     });
 
-    console.log("5. ¡Pedido enviado con éxito!");
-
-    localStorage.removeItem('pedido_el_mono');
-    localStorage.removeItem('notas_el_mono');
-
-    setAgradecimiento(true); 
-    setPedido([]); 
-    setNotas({});
+    // --- MENSAJE DE ÉXITO ---
+    setNotificacion("🚀 ¡Pedido enviado con éxito!");
+    
+    // Esperamos un momento para que vea el mensaje antes de la pantalla final
+    setTimeout(() => {
+      localStorage.removeItem('pedido_el_mono');
+      localStorage.removeItem('notas_el_mono');
+      setAgradecimiento(true); 
+      setPedido([]); 
+      setNotas({});
+      setEnviando(false);
+    }, 1500);
 
   } catch (error) {
-    console.error("ERROR EN FIREBASE:", error);
-    alert("Error de conexión con la base de datos.");
+    console.error("Error:", error);
+    alert("Hubo un error. Revisa tu conexión.");
+    setEnviando(false);
   }
 };
   const actualizarEstado = async (id, estado) => { await updateDoc(doc(db, "pedidos", id), { estado }); };
@@ -516,7 +542,21 @@ const eliminarDelCarrito = (idUnico) => {
     ✅ {notificacion}
   </div>
 )}
-
+{pedidosYaRealizados.length > 0 && (
+  <div style={{ maxWidth: '600px', margin: '20px auto', padding: '20px', background: '#f8fafc', borderRadius: '30px', border: '1px solid #e2e8f0' }}>
+    <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', color: MONO_TEXTO }}>🧾 Tu consumo actual</h3>
+    {pedidosYaRealizados.map((p, idx) => (
+      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '5px' }}>
+        <span>Pedido a las {p.hora} ({p.estado})</span>
+        <span style={{ fontWeight: 'bold' }}>${safeMoney(p.total)}</span>
+      </div>
+    ))}
+    <div style={{ borderTop: '1px dashed #cbd5e1', marginTop: '10px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: MONO_VERDE }}>
+      <span>TOTAL A PAGAR:</span>
+      <span>${safeMoney(totalConsumido)}</span>
+    </div>
+  </div>
+)}
 {/* 2. BOTÓN FLOTANTE (Acceso rápido al ticket) */}
 {pedido.length > 0 && (
   <button 
@@ -591,11 +631,24 @@ const eliminarDelCarrito = (idUnico) => {
     )}
 
     <button 
-      onClick={procesarPedido} 
-      style={{ width: '100%', marginTop: '20px', padding: '20px', background: MONO_NARANJA, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900', fontSize: '18px', cursor: 'pointer' }}
-    >
-      CONFIRMAR PEDIDO 👨‍🍳
-    </button>
+  onClick={procesarPedido} 
+  disabled={enviando}
+  className="btn-confirmar"
+  style={{ 
+    width: '100%', 
+    marginTop: '20px', 
+    padding: '20px', 
+    background: MONO_NARANJA, 
+    color: 'white', 
+    borderRadius: '25px', 
+    border: 'none', 
+    fontWeight: '900', 
+    fontSize: '18px', 
+    cursor: 'pointer' 
+  }}
+>
+  {enviando ? "ENVIANDO... ⏳" : "CONFIRMAR PEDIDO 👨‍🍳"}
+</button>
   </div>
 )}
         {mostrarLogin && (

@@ -233,26 +233,23 @@ const eliminarDelCarrito = (idUnico) => {
 
 
   const procesarPedido = async () => {
+  console.log("1. Botón presionado"); // Mensaje de control
+
   if (!mesa && !direccion.trim()) { 
+    console.log("2. Error: No hay mesa ni dirección");
     setErrorDireccion(true); 
     return; 
   }
 
-  // 1. Añade esto con tus otros hooks
-const ticketRef = useRef(null);
-const [notificacion, setNotificacion] = useState(null);
-
-// 2. Función para hacer scroll suave hasta el ticket
-const irAlTicket = () => {
-  ticketRef.current?.scrollIntoView({ behavior: 'smooth' });
-};
-  
   setErrorDireccion(false);
-  const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
-  const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
+  console.log("3. Validaciones pasadas");
 
   try {
-    // 1. Enviamos a Firebase
+    const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
+    const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
+
+    console.log("4. Intentando enviar a Firebase...");
+
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
       nombre: safeText(nombre), 
       ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
@@ -264,18 +261,18 @@ const irAlTicket = () => {
       tipo: mesa ? "mesa" : "domicilio"
     });
 
-    // 2. NUEVO: Limpiamos la persistencia del navegador
+    console.log("5. ¡Pedido enviado con éxito!");
+
     localStorage.removeItem('pedido_el_mono');
     localStorage.removeItem('notas_el_mono');
 
-    // 3. Limpiamos el estado de la App
     setAgradecimiento(true); 
     setPedido([]); 
     setNotas({});
 
   } catch (error) {
-    console.error("Error al enviar el pedido:", error);
-    alert("Hubo un error al procesar tu pedido. Intenta de nuevo.");
+    console.error("ERROR EN FIREBASE:", error);
+    alert("Error de conexión con la base de datos.");
   }
 };
   const actualizarEstado = async (id, estado) => { await updateDoc(doc(db, "pedidos", id), { estado }); };

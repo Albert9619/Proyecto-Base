@@ -217,6 +217,28 @@ const agregarAlCarrito = (p) => {
   setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
   setTimeout(() => setNotificacion(null), 2500);
 };
+
+const estiloCardMétrica = (color) => ({
+  background: 'white',
+  padding: '20px',
+  borderRadius: '25px',
+  borderLeft: `8px solid ${color}`,
+  boxShadow: '0 10px 20px rgba(0,0,0,0.05)',
+  textAlign: 'center'
+});
+
+const estiloTabAdmin = (activa, color) => ({
+  flex: 1,
+  padding: '15px',
+  borderRadius: '20px',
+  border: 'none',
+  background: activa ? color : 'white',
+  color: activa ? 'white' : MONO_TEXTO,
+  fontWeight: 'bold',
+  cursor: 'pointer',
+  transition: '0.3s',
+  boxShadow: activa ? `0 10px 15px ${color}44` : 'none'
+});
  
 
   const vaciarCarrito = () => {
@@ -379,6 +401,8 @@ const procesarPedido = async () => {
               </div>
             ))}
 
+            
+
             <div style={{ display: 'flex', gap: '10px', marginBottom: '25px', overflowX: 'auto' }} className="scroll-hide">
               <button onClick={() => setTabActiva("pedidos")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "pedidos" ? MONO_NARANJA : "white", fontSize: '18px', fontWeight: 'bold', border: numPendientes > 0 ? `4px solid ${MONO_ROJO}` : 'none' }}>COCINA ({numPendientes})</button>
               <button onClick={() => setTabActiva("gestion")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "gestion" ? MONO_AZUL : "white", color: tabActiva === "gestion" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>GESTIÓN</button>
@@ -403,6 +427,7 @@ const procesarPedido = async () => {
                 ))}
               </div>
             )}
+            
 
             {tabActiva === "gestion" && (
               <div style={{ background: 'white', padding: '30px', borderRadius: '40px' }}>
@@ -455,6 +480,21 @@ const procesarPedido = async () => {
             {tabActiva === "caja" && (
               <div style={{ background: 'white', padding: '40px', borderRadius: '40px' }}>
                 <h2 style={{ color: MONO_NARANJA }}>Cuadre de Turno 📊</h2>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+  <div style={estiloCardMétrica(MONO_NARANJA)}>
+    <small>💰 Ventas Totales</small>
+    <h2>${safeMoney(tVendido)}</h2>
+  </div>
+  <div style={estiloCardMétrica(MONO_AZUL)}>
+    <small>📦 Pedidos Hoy</small>
+    <h2>{pedidosFB.length}</h2>
+  </div>
+  <div style={estiloCardMétrica(MONO_VERDE)}>
+    <small>📈 Ticket Promedio</small>
+    <h2>${safeMoney(pedidosFB.length > 0 ? tVendido / pedidosFB.length : 0)}</h2>
+  </div>
+</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
                   <div style={{ padding: '30px', background: '#fff7ed', borderRadius: '25px', border: `2px solid ${MONO_NARANJA}`, textAlign: 'center' }}>
                     <small style={{ color: '#666' }}>RECAUDO TOTAL</small>

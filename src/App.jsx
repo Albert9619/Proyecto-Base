@@ -148,11 +148,10 @@ const agregarAlCarrito = (p) => {
     detalle: det 
   }]);
 
-  // Notificación visual para el cliente
+  // Notificación para el cliente
   setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
   setTimeout(() => setNotificacion(null), 2500);
 };
-
  
 
   const vaciarCarrito = () => {

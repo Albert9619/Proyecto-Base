@@ -148,6 +148,15 @@ export default function App() {
   p.ubicacion === `MESA ${mesa}` && 
   p.estado !== "pagado"
 );
+const estiloTarjetaPremium = {
+  background: "rgba(255, 255, 255, 0.8)",
+  backdropFilter: "blur(10px)",
+  borderRadius: "30px",
+  border: "1px solid rgba(255, 255, 255, 0.3)",
+  padding: "10px",
+  transition: "transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+  overflow: "hidden"
+};
 
 const totalConsumido = pedidosYaRealizados.reduce((acc, p) => acc + (p.total || 0), 0);
 

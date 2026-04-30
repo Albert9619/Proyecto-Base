@@ -151,6 +151,25 @@ const [notaPedido, setNotaPedido] = useState("");
   p.ubicacion === `MESA ${mesa}` && 
   p.estado !== "pagado"
 );
+const toggleDisponibilidad = async (id, estadoActual) => {
+  try {
+    await updateDoc(doc(db, "productos", id), { disponible: !estadoActual });
+    // Opcional: Una notificación pequeña de éxito
+  } catch (error) {
+    console.error("Error actualizando disponibilidad:", error);
+  }
+};
+
+const actualizarPrecio = async (id, nuevoPrecio) => {
+  const p = parseInt(nuevoPrecio);
+  if (!isNaN(p) && p >= 0) {
+    try {
+      await updateDoc(doc(db, "productos", id), { precio: p });
+    } catch (error) {
+      console.error("Error actualizando precio:", error);
+    }
+  }
+};
 // --- ESTILOS DE PRODUCTOS PREMIUM ---
 const estiloTarjetaMela = {
   background: "rgba(255, 255, 255, 0.7)", 
@@ -301,7 +320,13 @@ const estiloTabAdmin = (activa, color) => ({
       setAlertasFB(data);
     });
   }, [isAdmin]);
-
+useEffect(() => {
+  const q = query(collection(db, "productos"), orderBy("nombre", "asc"));
+  return onSnapshot(q, (s) => {
+    const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    setMenuFB(data);
+  });
+}, []);
   useEffect(() => {
     localStorage.setItem('pedido_el_mono', JSON.stringify(pedido));
     localStorage.setItem('notas_el_mono', JSON.stringify(notas));
@@ -514,22 +539,75 @@ const generarReporteWhatsApp = () => {
             
 
             {tabActiva === "gestion" && (
-              <div style={{ background: 'white', padding: '30px', borderRadius: '40px' }}>
-                <h2 style={{ color: MONO_TEXTO }}>Inventario y Precios 📋</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead><tr style={{ borderBottom: '2px solid #eee' }}><th style={{ padding: '15px' }}>Producto</th><th style={{ padding: '15px' }}>Precio ($)</th><th style={{ padding: '15px' }}>Estado</th></tr></thead>
-                  <tbody>
-                    {menuFB.map(p => (
-                      <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '15px', fontWeight: 'bold' }}>{safeText(p.nombre)}</td>
-                        <td style={{ padding: '15px' }}><input type="number" defaultValue={p.precio} onBlur={(e) => actualizarPrecio(p.id, e.target.value)} style={{ width: '100px', padding: '8px', borderRadius: '10px', border: '1px solid #ddd' }} /></td>
-                        <td style={{ padding: '15px' }}><button onClick={() => toggleDisponibilidad(p.id, p.disponible)} style={{ padding: '10px 20px', borderRadius: '30px', border: 'none', background: p.disponible ? MONO_VERDE : MONO_ROJO, color: 'white', fontWeight: 'bold' }}>{p.disponible ? "HABILITADO" : "AGOTADO"}</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+  <div style={{ background: 'white', padding: '30px', borderRadius: '40px', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+      <h2 style={{ color: MONO_TEXTO, margin: 0 }}>Inventario y Precios 📋</h2>
+      {/* Indicador de total de productos */}
+      <span style={{ background: '#f1f5f9', padding: '5px 15px', borderRadius: '15px', fontSize: '14px', fontWeight: 'bold' }}>
+        {menuFB.length} ítems
+      </span>
+    </div>
+
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
+            <th style={{ padding: '15px', color: '#64748b', fontSize: '14px' }}>PRODUCTO</th>
+            <th style={{ padding: '15px', color: '#64748b', fontSize: '14px' }}>PRECIO ($)</th>
+            <th style={{ padding: '15px', color: '#64748b', fontSize: '14px' }}>DISPONIBILIDAD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {menuFB.map(p => (
+            <tr key={p.id} style={{ borderBottom: '1px solid #f8fafc', background: p.disponible ? 'transparent' : '#fff1f2' }}>
+              <td style={{ padding: '15px' }}>
+                <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{safeText(p.nombre)}</div>
+                <small style={{ color: '#94a3b8' }}>{p.categoria}</small>
+              </td>
+              <td style={{ padding: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ color: '#94a3b8' }}>$</span>
+                  <input 
+                    type="number" 
+                    defaultValue={p.precio} 
+                    onBlur={(e) => actualizarPrecio(p.id, e.target.value)} 
+                    style={{ 
+                      width: '90px', 
+                      padding: '10px', 
+                      borderRadius: '12px', 
+                      border: '1px solid #e2e8f0',
+                      fontWeight: 'bold',
+                      outline: 'none'
+                    }} 
+                  />
+                </div>
+              </td>
+              <td style={{ padding: '15px' }}>
+                <button 
+                  onClick={() => toggleDisponibilidad(p.id, p.disponible)} 
+                  style={{ 
+                    padding: '10px 20px', 
+                    borderRadius: '15px', 
+                    border: 'none', 
+                    background: p.disponible ? MONO_VERDE : MONO_ROJO, 
+                    color: 'white', 
+                    fontWeight: '900',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    width: '120px',
+                    boxShadow: p.disponible ? '0 4px 10px rgba(22,163,74,0.2)' : '0 4px 10px rgba(239,68,68,0.2)'
+                  }}
+                >
+                  {p.disponible ? "HABILITADO" : "AGOTADO"}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
 
             {tabActiva === "mesas" && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>

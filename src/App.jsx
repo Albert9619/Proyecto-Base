@@ -180,10 +180,26 @@ const [notas, setNotas] = useState(() => {
     setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
   };
 
-  const eliminarDelCarrito = (idUnico) => {
-    setPedido(prev => prev.filter(it => it.idUnico !== idUnico));
-    setNotas(prev => { const n = {...prev}; delete n[idUnico]; return n; });
-  };
+  // Para eliminar un solo producto
+const eliminarDelCarrito = (idUnico) => {
+  setPedido(prev => prev.filter(it => it.idUnico !== idUnico));
+  // También eliminamos la nota asociada para no dejar basura en el estado
+  setNotas(prev => {
+    const n = { ...prev };
+    delete n[idUnico];
+    return n;
+  });
+};
+
+// Para vaciar todo el carrito
+const vaciarCarrito = () => {
+  if (window.confirm("¿Quieres quitar todos los productos del carrito?")) {
+    setPedido([]);
+    setNotas({});
+    localStorage.removeItem('pedido_el_mono');
+    localStorage.removeItem('notas_el_mono');
+  }
+};
 
   const procesarPedido = async () => {
   if (!mesa && !direccion.trim()) { 
@@ -442,20 +458,61 @@ const [notas, setNotas] = useState(() => {
         )}
 
         {pedido.length > 0 && (
-          <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
-            <h2 style={{ textAlign: 'center' }}>🛒 Tu Pedido</h2>
-            {pedido.map(it => (
-              <div key={it.idUnico} style={{ padding: '10px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
-                <span><strong>{it.cantidad}x</strong> {safeText(it.nombre)}</span>
-                <span><strong>${safeMoney(it.subtotal)}</strong></span>
-              </div>
-            ))}
-            {!mesa && (
-               <input type="text" placeholder="📍 Dirección de entrega..." value={direccion} onChange={(e) => setDireccion(e.target.value)} style={{ width: '100%', padding: '15px', marginTop: '15px', borderRadius: '15px', border: errorDireccion ? `2px solid ${MONO_ROJO}` : '1px solid #eee' }} />
-            )}
-            <button onClick={procesarPedido} style={{ width: '100%', marginTop: '20px', padding: '20px', background: MONO_NARANJA, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900' }}>CONFIRMAR 👨‍🍳</button>
-          </div>
-        )}
+  <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+    
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <h2 style={{ margin: 0 }}>🛒 Tu Pedido</h2>
+      <button 
+        onClick={vaciarCarrito}
+        style={{ background: '#fee2e2', color: MONO_ROJO, border: 'none', padding: '8px 15px', borderRadius: '12px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
+      >
+        Vaciar Todo
+      </button>
+    </div>
+
+    {pedido.map(it => (
+      <div key={it.idUnico} style={{ padding: '15px 0', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 'bold' }}>{it.cantidad}x {safeText(it.nombre)}</div>
+          {it.detalle && <small style={{ color: '#666' }}>{it.detalle}</small>}
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <span style={{ fontWeight: '900', color: MONO_TEXTO }}>${safeMoney(it.subtotal)}</span>
+          <button 
+            onClick={() => eliminarDelCarrito(it.idUnico)}
+            style={{ background: 'none', border: 'none', color: MONO_ROJO, fontSize: '20px', cursor: 'pointer', padding: '5px' }}
+            title="Eliminar"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+    ))}
+
+    <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '2px solid #eee', display: 'flex', justifyContent: 'space-between', fontSize: '22px', fontWeight: '900' }}>
+      <span>Total:</span>
+      <span>${safeMoney(pedido.reduce((acc, i) => acc + i.subtotal, 0))}</span>
+    </div>
+
+    {!mesa && (
+      <input 
+        type="text" 
+        placeholder="📍 Dirección de entrega..." 
+        value={direccion} 
+        onChange={(e) => setDireccion(e.target.value)} 
+        style={{ width: '100%', padding: '15px', marginTop: '15px', borderRadius: '15px', border: errorDireccion ? `2px solid ${MONO_ROJO}` : '1px solid #eee', boxSizing: 'border-box' }} 
+      />
+    )}
+
+    <button 
+      onClick={procesarPedido} 
+      style={{ width: '100%', marginTop: '20px', padding: '20px', background: MONO_NARANJA, color: 'white', borderRadius: '25px', border: 'none', fontWeight: '900', fontSize: '18px', cursor: 'pointer' }}
+    >
+      CONFIRMAR PEDIDO 👨‍🍳
+    </button>
+  </div>
+)}
 
         {mostrarLogin && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

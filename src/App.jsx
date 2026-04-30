@@ -145,6 +145,8 @@ export default function App() {
   const [baseUrl, setBaseUrl] = useState(window.location.origin);
   const [enviando, setEnviando] = useState(false);
   const [telefono, setTelefono] = useState("");
+  // Reemplaza el estado de notas anterior por este:
+const [notaPedido, setNotaPedido] = useState("");
   const pedidosYaRealizados = pedidosFB.filter(p => 
   p.ubicacion === `MESA ${mesa}` && 
   p.estado !== "pagado"
@@ -330,15 +332,13 @@ const procesarPedido = async () => {
   setErrorDireccion(false);
 
   try {
-    const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
-    const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
-
     await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
       nombre: safeText(nombre), 
-      telefono: safeText(telefono), //
+      telefono: safeText(telefono),
       ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
-      productos: productosConNotas, 
-      total, 
+      productos: pedido, // Los productos ya no necesitan notas individuales
+      notaGeneral: notaPedido, // <-- Guardamos la nota única aquí
+      total: pedido.reduce((acc, i) => acc + i.subtotal, 0),
       timestamp: Date.now(),
       hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       estado: "pendiente", 
@@ -363,6 +363,8 @@ const procesarPedido = async () => {
     alert("Hubo un error. Revisa tu conexión.");
     setEnviando(false);
   }
+  
+  
 };
   const actualizarEstado = async (id, estado) => { await updateDoc(doc(db, "pedidos", id), { estado }); };
   const enviarAlerta = async (tipo) => {
@@ -430,13 +432,85 @@ const generarReporteWhatsApp = () => {
               <button onClick={() => setTabActiva("caja")} style={{ flex: 1, padding: '20px', borderRadius: '20px', background: tabActiva === "caja" ? "#000" : "white", color: tabActiva === "caja" ? "white" : "black", fontSize: '18px', fontWeight: 'bold', border: 'none' }}>CAJA</button>
             </div>
 
-            <input 
-  type="tel" 
-  placeholder="📞 Teléfono de contacto" 
-  value={telefono} 
-  onChange={(e) => setTelefono(e.target.value)} 
-  style={{ width: '100%', padding: '15px', marginTop: '10px', borderRadius: '15px', border: '1px solid #eee' }} 
-/>
+
+            {/* --- COMIENZO DEL BLOQUE DE COCINA --- */}
+{tabActiva === "pedidos" && (
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '25px' }}>
+    {pedidosFB.filter(p => p.estado !== "entregado" && p.estado !== "pagado").map(p => (
+      <div 
+        key={p.id} 
+        className={p.estado === 'pendiente' ? 'pedido-pendiente' : ''} 
+        style={{ 
+          background: 'white', 
+          padding: '25px', 
+          borderRadius: '35px', 
+          border: p.estado === 'pendiente' ? `4px solid ${MONO_AMARILLO}` : `4px solid ${MONO_AZUL}`,
+          boxShadow: '0 10px 20px rgba(0,0,0,0.02)'
+        }}
+      >
+        {/* ENCABEZADO DEL TICKET */}
+        <div style={{ borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '26px', fontWeight: '900', color: '#1e293b' }}>{safeText(p.ubicacion)}</span>
+            <span style={{ fontSize: '16px', color: '#64748b' }}>{safeText(p.hora)}</span>
+          </div>
+          <div style={{ fontSize: '17px', color: '#475569', marginTop: '5px', fontWeight: 'bold' }}>
+            👤 {safeText(p.nombre)} {p.telefono && ` · 📞 ${p.telefono}`}
+          </div>
+          
+          {/* NOTA GENERAL ÚNICA (Debajo del teléfono) */}
+          {p.notaGeneral && (
+            <div style={{ 
+              background: '#fff1f2', 
+              color: MONO_ROJO, 
+              padding: '10px 15px', 
+              borderRadius: '12px', 
+              marginTop: '10px', 
+              fontWeight: '900', 
+              borderLeft: `6px solid ${MONO_ROJO}`,
+              fontSize: '16px'
+            }}>
+              🔔 NOTA: {safeText(p.notaGeneral)}
+            </div>
+          )}
+        </div>
+
+        {/* LISTA DE PRODUCTOS */}
+        {p.productos.map((it, i) => (
+          <div key={i} style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: '#334155' }}>
+              {it.cantidad}x {safeText(it.nombre)}
+            </div>
+            {it.detalle && <small style={{ color: '#64748b', display: 'block' }}>{it.detalle}</small>}
+          </div>
+        ))}
+
+        {/* BOTONES DE ACCIÓN */}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          {p.estado === 'pendiente' && (
+            <button 
+              onClick={() => actualizarEstado(p.id, 'preparando')} 
+              style={{ flex: 1, background: MONO_AZUL, color: 'white', border: 'none', padding: '18px', borderRadius: '15px', fontWeight: '900', fontSize: '16px', cursor: 'pointer' }}
+            >
+              FRITAR 👨‍🍳
+            </button>
+          )}
+          {p.estado === 'preparando' && (
+            <button 
+              onClick={() => actualizarEstado(p.id, 'entregado')} 
+              style={{ flex: 1, background: MONO_VERDE, color: 'white', border: 'none', padding: '18px', borderRadius: '15px', fontWeight: '900', fontSize: '16px', cursor: 'pointer' }}
+            >
+              DESPACHAR ✅
+            </button>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+{/* --- FIN DEL BLOQUE DE COCINA --- */}
+
+           
             
 
             {tabActiva === "gestion" && (
@@ -789,10 +863,17 @@ const generarReporteWhatsApp = () => {
     {/* Campo para la Nota Personalizada */}
     <input 
       type="text" 
-      placeholder="📝 Nota: ej. sin cebolla, bien frita..." 
-      value={notas[it.idUnico] || ""}
-      onChange={(e) => setNotas({...notas, [it.idUnico]: e.target.value})}
-      style={{ width: '100%', marginTop: '8px', padding: '8px 12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#f8fafc' }}
+  placeholder="📝 Nota general (ej. sin cebolla, traer cambio de 50k...)" 
+  value={notaPedido} 
+  onChange={(e) => setNotaPedido(e.target.value)} 
+  style={{ 
+    width: '100%', 
+    padding: '15px', 
+    marginTop: '10px', 
+    borderRadius: '15px', 
+    border: '1px solid #e2e8f0', 
+    background: '#f8fafc',
+    boxSizing: 'border-box' }}
     />
   </div>
 ))}

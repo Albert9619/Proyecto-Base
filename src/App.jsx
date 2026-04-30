@@ -160,7 +160,7 @@ const agregarAlCarrito = (p) => {
       setNotas({});
       localStorage.removeItem('pedido_el_mono');
       localStorage.removeItem('notas_el_mono');
-    }const agrega
+    }
   };
 
   const toggleDisponibilidad = async (id, estadoActual) => {

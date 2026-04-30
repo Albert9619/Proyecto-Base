@@ -82,8 +82,16 @@ export default function App() {
   const [pedidosFB, setPedidosFB] = useState([]);
   const [alertasFB, setAlertasFB] = useState([]);
   const [menuFB, setMenuFB] = useState([]); 
-  const [pedido, setPedido] = useState([]);
-  const [notas, setNotas] = useState({});
+  // Busca estos estados en tu código y reemplázalos
+const [pedido, setPedido] = useState(() => {
+    const guardado = localStorage.getItem('pedido_el_mono');
+    return guardado ? JSON.parse(guardado) : [];
+});
+
+const [notas, setNotas] = useState(() => {
+    const guardado = localStorage.getItem('notas_el_mono');
+    return guardado ? JSON.parse(guardado) : {};
+});
   const [mesa, setMesa] = useState(null);
   const [categoriaActiva, setCategoriaActiva] = useState("Fritos");
   const [selecciones, setSelecciones] = useState({});
@@ -159,6 +167,11 @@ export default function App() {
     });
   }, [isAdmin]);
 
+  useEffect(() => {
+    localStorage.setItem('pedido_el_mono', JSON.stringify(pedido));
+    localStorage.setItem('notas_el_mono', JSON.stringify(notas));
+}, [pedido, notas]);
+
   const agregarAlCarrito = (p) => {
     const sel = selecciones[p.id] || {};
     const cant = cantidades[p.id] || 1;
@@ -173,19 +186,42 @@ export default function App() {
   };
 
   const procesarPedido = async () => {
-    if (!mesa && !direccion.trim()) { setErrorDireccion(true); return; }
-    setErrorDireccion(false);
-    const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
-    const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
-    await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
-      nombre: safeText(nombre), ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
-      productos: productosConNotas, total, timestamp: Date.now(),
-      hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      estado: "pendiente", tipo: mesa ? "mesa" : "domicilio"
-    });
-    setAgradecimiento(true); setPedido([]); setNotas({});
-  };
+  if (!mesa && !direccion.trim()) { 
+    setErrorDireccion(true); 
+    return; 
+  }
+  
+  setErrorDireccion(false);
+  const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
+  const productosConNotas = pedido.map(it => ({ ...it, nota: notas[it.idUnico] || "" }));
 
+  try {
+    // 1. Enviamos a Firebase
+    await setDoc(doc(db, "pedidos", `ORD-${Date.now()}`), {
+      nombre: safeText(nombre), 
+      ubicacion: mesa ? `MESA ${mesa}` : direccion.trim(),
+      productos: productosConNotas, 
+      total, 
+      timestamp: Date.now(),
+      hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      estado: "pendiente", 
+      tipo: mesa ? "mesa" : "domicilio"
+    });
+
+    // 2. NUEVO: Limpiamos la persistencia del navegador
+    localStorage.removeItem('pedido_el_mono');
+    localStorage.removeItem('notas_el_mono');
+
+    // 3. Limpiamos el estado de la App
+    setAgradecimiento(true); 
+    setPedido([]); 
+    setNotas({});
+
+  } catch (error) {
+    console.error("Error al enviar el pedido:", error);
+    alert("Hubo un error al procesar tu pedido. Intenta de nuevo.");
+  }
+};
   const actualizarEstado = async (id, estado) => { await updateDoc(doc(db, "pedidos", id), { estado }); };
   const enviarAlerta = async (tipo) => {
     if (!mesa) return;

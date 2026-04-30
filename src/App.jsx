@@ -77,21 +77,25 @@ const safeMoney = (val) => {
 };
 
 export default function App() {
+  // --- 1. ESTADOS (TODOS LOS HOOKS AL PRINCIPIO) ---
   const [isAdmin, setIsAdmin] = useState(false);
   const [tabActiva, setTabActiva] = useState("pedidos");
   const [pedidosFB, setPedidosFB] = useState([]);
   const [alertasFB, setAlertasFB] = useState([]);
   const [menuFB, setMenuFB] = useState([]); 
-  // Busca estos estados en tu código y reemplázalos
-const [pedido, setPedido] = useState(() => {
+
+  // Persistencia del Carrito
+  const [pedido, setPedido] = useState(() => {
     const guardado = localStorage.getItem('pedido_el_mono');
     return guardado ? JSON.parse(guardado) : [];
-});
+  });
 
-const [notas, setNotas] = useState(() => {
+  const [notas, setNotas] = useState(() => {
     const guardado = localStorage.getItem('notas_el_mono');
     return guardado ? JSON.parse(guardado) : {};
-});
+  });
+
+  // Estados de Interfaz y Cliente
   const [mesa, setMesa] = useState(null);
   const [categoriaActiva, setCategoriaActiva] = useState("Fritos");
   const [selecciones, setSelecciones] = useState({});
@@ -106,27 +110,60 @@ const [notas, setNotas] = useState(() => {
   const [alertaEnviada, setAlertaEnviada] = useState(null);
   const [baseUrl, setBaseUrl] = useState(window.location.origin);
 
-  const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
-  const tipoArrozHoy = ["lunes", "miércoles", "viernes"].includes(hoy) ? "Pollo" : "Cerdo";
+  // NUEVOS ESTADOS CORREGIDOS (Para que no den error en el return)
+  const [notificacion, setNotificacion] = useState(null);
 
+  // --- 2. REFERENCIAS (REFS) ---
+  const ticketRef = useRef(null);
   const prevPedidosRef = useRef(0);
   const prevAlertasRef = useRef(0);
+
+  // --- 3. LÓGICA DE APOYO (VARIABLES DERIVADAS) ---
+  const hoy = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date().getDay()];
+  const tipoArrozHoy = ["lunes", "miércoles", "viernes"].includes(hoy) ? "Pollo" : "Cerdo";
 
   const numPendientes = pedidosFB.filter(p => p.estado === 'pendiente').length;
   const workload = numPendientes <= 3 ? { t: "Cocina Despejada", c: MONO_VERDE, m: "5-10 min" } :
                    numPendientes <= 8 ? { t: "Cocina con Flujo", c: MONO_AMARILLO, m: "15-20 min" } :
                    { t: "Cocina a Tope", c: MONO_ROJO, m: "25-30 min" };
 
-  useEffect(() => {
-    const q = query(collection(db, "productos"), orderBy("categoria", "asc"));
-    return onSnapshot(q, (s) => {
-      const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
-      setMenuFB(data);
-      if (s.empty) {
-        productosBase.forEach(async (p) => await setDoc(doc(db, "productos", p.id), p));
-      }
+  // --- 4. FUNCIONES DE ACCIÓN ---
+
+  // Desplazamiento suave al ticket
+  const irAlTicket = () => {
+    ticketRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const agregarAlCarrito = (p) => {
+    const sel = selecciones[p.id] || {};
+    const cant = cantidades[p.id] || 1;
+    const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
+    const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
+    
+    setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
+
+    // Mostrar notificación
+    setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
+    setTimeout(() => setNotificacion(null), 2500);
+  };
+
+  const eliminarDelCarrito = (idUnico) => {
+    setPedido(prev => prev.filter(it => it.idUnico !== idUnico));
+    setNotas(prev => {
+      const n = { ...prev };
+      delete n[idUnico];
+      return n;
     });
-  }, []);
+  };
+
+  const vaciarCarrito = () => {
+    if (window.confirm("¿Quieres quitar todos los productos del carrito?")) {
+      setPedido([]);
+      setNotas({});
+      localStorage.removeItem('pedido_el_mono');
+      localStorage.removeItem('notas_el_mono');
+    }
+  };
 
   const toggleDisponibilidad = async (id, estadoActual) => {
     await updateDoc(doc(db, "productos", id), { disponible: !estadoActual });
@@ -136,6 +173,16 @@ const [notas, setNotas] = useState(() => {
     const p = parseInt(nuevoPrecio);
     if (!isNaN(p)) await updateDoc(doc(db, "productos", id), { precio: p });
   };
+
+  // --- 5. EFECTOS (SIDE EFFECTS) ---
+
+  // Guardar en localStorage automáticamente al cambiar el pedido o notas
+  useEffect(() => {
+    localStorage.setItem('pedido_el_mono', JSON.stringify(pedido));
+    localStorage.setItem('notas_el_mono', JSON.stringify(notas));
+  }, [pedido, notas]);
+
+  // (Siguen aquí tus otros useEffects de Firebase...)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

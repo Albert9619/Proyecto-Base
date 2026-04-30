@@ -172,13 +172,18 @@ const [notas, setNotas] = useState(() => {
     localStorage.setItem('notas_el_mono', JSON.stringify(notas));
 }, [pedido, notas]);
 
-  const agregarAlCarrito = (p) => {
-    const sel = selecciones[p.id] || {};
-    const cant = cantidades[p.id] || 1;
-    const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
-    const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
-    setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
-  };
+ const agregarAlCarrito = (p) => {
+  const sel = selecciones[p.id] || {};
+  const cant = cantidades[p.id] || 1;
+  const precioBase = (p.precio && p.precio > 0) ? p.precio : (sel.tamano ? sel.tamano.p : (p.tamanos?.[0]?.p || 0));
+  const det = [sel.sabor, sel.tamano?.n, sel.config].filter(Boolean).join(' · ');
+  
+  setPedido(prev => [...prev, { idUnico: Date.now(), nombre: safeText(p.nombre), cantidad: cant, subtotal: precioBase * cant, detalle: det }]);
+
+  // --- NUEVO: Mostrar notificación temporal ---
+  setNotificacion(`¡${cant}x ${safeText(p.nombre)} añadido!`);
+  setTimeout(() => setNotificacion(null), 2500); // Desaparece en 2.5 seg
+};
 
   // Para eliminar un solo producto
 const eliminarDelCarrito = (idUnico) => {
@@ -206,6 +211,15 @@ const vaciarCarrito = () => {
     setErrorDireccion(true); 
     return; 
   }
+
+  // 1. Añade esto con tus otros hooks
+const ticketRef = useRef(null);
+const [notificacion, setNotificacion] = useState(null);
+
+// 2. Función para hacer scroll suave hasta el ticket
+const irAlTicket = () => {
+  ticketRef.current?.scrollIntoView({ behavior: 'smooth' });
+};
   
   setErrorDireccion(false);
   const total = pedido.reduce((acc, i) => acc + i.subtotal, 0);
@@ -406,6 +420,17 @@ const vaciarCarrito = () => {
           </div>
         </header>
 
+        {notificacion && (
+  <div style={{
+    position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+    background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '50px',
+    zIndex: 9999, fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+    animation: 'mono-pulse 0.5s ease-out'
+  }}>
+    ✅ {notificacion}
+  </div>
+)}
+
         <div style={{ textAlign: 'center', marginTop: '50px' }}><div style={{ background: '#fff7ed', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', color: MONO_NARANJA }}>Arroz Hoy: {safeText(tipoArrozHoy)}</div></div>
 
         <div className="scroll-hide" style={{ display: 'flex', gap: '12px', overflowX: 'auto', padding: '20px 25px' }}>
@@ -457,8 +482,45 @@ const vaciarCarrito = () => {
           </div>
         )}
 
-        {pedido.length > 0 && (
-  <div style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+       {/* 1. NOTIFICACIÓN TOAST (Aparece arriba) */}
+{notificacion && (
+  <div style={{
+    position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+    background: MONO_TEXTO, color: 'white', padding: '12px 25px', borderRadius: '50px',
+    zIndex: 30000, fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+    animation: 'mono-pulse 0.5s ease-out'
+  }}>
+    ✅ {notificacion}
+  </div>
+)}
+
+{/* 2. BOTÓN FLOTANTE (Acceso rápido al ticket) */}
+{pedido.length > 0 && (
+  <button 
+    onClick={irAlTicket}
+    style={{
+      position: 'fixed', bottom: mesa ? '100px' : '30px', right: '20px',
+      background: MONO_NARANJA, color: 'white', width: '65px', height: '65px',
+      borderRadius: '50%', border: 'none', fontSize: '28px', cursor: 'pointer',
+      boxShadow: '0 5px 20px rgba(249,115,22,0.4)', zIndex: 4000,
+      display: 'flex', justifyContent: 'center', alignItems: 'center'
+    }}
+  >
+    🛒
+    <span style={{
+      position: 'absolute', top: '0', right: '0', background: 'white',
+      color: MONO_NARANJA, width: '24px', height: '24px', borderRadius: '50%',
+      fontSize: '14px', fontWeight: 'bold', display: 'flex', 
+      justifyContent: 'center', alignItems: 'center', border: `2px solid ${MONO_NARANJA}`
+    }}>
+      {pedido.length}
+    </span>
+  </button>
+)}
+
+{/* 3. EL TICKET (Tu código con la Ref añadida) */}
+{pedido.length > 0 && (
+  <div ref={ticketRef} style={{ maxWidth: '600px', margin: '40px auto', background: 'white', padding: '30px', borderRadius: '40px', border: `5px solid ${MONO_NARANJA}`, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
     
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
       <h2 style={{ margin: 0 }}>🛒 Tu Pedido</h2>
@@ -481,7 +543,7 @@ const vaciarCarrito = () => {
           <span style={{ fontWeight: '900', color: MONO_TEXTO }}>${safeMoney(it.subtotal)}</span>
           <button 
             onClick={() => eliminarDelCarrito(it.idUnico)}
-            style={{ background: 'none', border: 'none', color: MONO_ROJO, fontSize: '20px', cursor: 'pointer', padding: '5px' }}
+            style={{ background: '#fee2e2', border: 'none', color: MONO_ROJO, padding: '10px', borderRadius: '12px', cursor: 'pointer', fontSize: '18px' }}
             title="Eliminar"
           >
             🗑️
@@ -513,7 +575,6 @@ const vaciarCarrito = () => {
     </button>
   </div>
 )}
-
         {mostrarLogin && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 20000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <div style={{ background: 'white', padding: '40px', borderRadius: '35px', textAlign: 'center' }}>

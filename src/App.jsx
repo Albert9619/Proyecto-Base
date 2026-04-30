@@ -46,6 +46,21 @@ const pulseStyle = `
     filter: brightness(0.9);
   }
 
+  btn-alerta {
+    transition: all 0.2s ease !important;
+    cursor: pointer;
+  }
+
+  .btn-alerta:active {
+    transform: scale(0.95) !important; /* El efecto de hundirse */
+    filter: brightness(0.8);           /* Se oscurece un poco al tocarlo */
+  }
+
+  /* Aprovechamos para que se vea bien en móviles sin el recuadro azul de selección */
+  .btn-alerta:focus {
+    outline: none;
+  }
+
   .btn-confirmar:disabled {
     background: #ccc !important;
     cursor: not-allowed !important;
@@ -524,12 +539,27 @@ const procesarPedido = async () => {
           })}
         </div>
 
-        {mesa && (
-          <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', zIndex: 5000, width: '90%', maxWidth: '450px' }}>
-            <button onClick={() => enviarAlerta('mesero')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_AZUL, color: 'white', fontWeight: 'bold', border: 'none' }}>🙋 Llamar Mesero</button>
-            <button onClick={() => enviarAlerta('cuenta')} style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_VERDE, color: 'white', fontWeight: 'bold', border: 'none' }}>💳 Pedir Cuenta</button>
-          </div>
-        )}
+       {mesa && (
+  <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', z_index: 5000, width: '90%', maxWidth: '450px' }}>
+    
+    <button 
+      onClick={() => enviarAlerta('mesero')} 
+      className="btn-alerta"
+      style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_AZUL, color: 'white', fontWeight: 'bold', border: 'none' }}
+    >
+      🙋 Llamar Mesero
+    </button>
+
+    <button 
+      onClick={() => enviarAlerta('cuenta')} 
+      className="btn-alerta"
+      style={{ flex: 1, padding: '18px', borderRadius: '25px', background: MONO_VERDE, color: 'white', fontWeight: 'bold', border: 'none' }}
+    >
+      💳 Pedir Cuenta
+    </button>
+
+  </div>
+)}
 
        {/* 1. NOTIFICACIÓN TOAST (Aparece arriba) */}
 {notificacion && (

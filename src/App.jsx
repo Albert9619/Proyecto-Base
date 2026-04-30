@@ -370,11 +370,7 @@ const procesarPedido = async () => {
               <button onClick={() => setIsAdmin(false)} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#ddd', fontWeight: 'bold' }}>Salir</button>
             </div>
 
-            {productosFiltrados.map((p) => (
-  <div key={p.id} style={estiloTarjetaMela} className="card-hover">
-    {/* Aquí va la imagen, el nombre y el precio */}
-  </div>
-))}
+          
 
             {alertasFB.map(a => (
               <div key={a.id} className="alerta-notif" style={{ padding: '20px', borderRadius: '20px', marginBottom: '15px', color: 'white', display: 'flex', justifyContent: 'space-between' }}>

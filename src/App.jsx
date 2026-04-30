@@ -718,13 +718,24 @@ const generarReporteWhatsApp = () => {
     <>
       <style>{pulseStyle}</style>
       <div style={{ fontFamily: 'system-ui, sans-serif', backgroundColor: '#fffcf5', minHeight: '100vh', paddingBottom: '180px' }}>
-        <header style={{ position: 'relative', height: '220px', background: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(https://images.unsplash.com/photo-1541592106381-b31e9221c004?q=80&w=1000&auto=format&fit=crop)`, backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white', borderRadius: '0 0 50px 50px' }}>
-          <h1 onClick={() => setMostrarLogin(true)} style={{ fontSize: '2.8rem', margin: 0, fontWeight: '900', cursor: 'pointer' }}>Fritos El Mono</h1>
-          <p>El sabor más crocante de Carepa 🐒</p>
-          <div style={{ position: 'absolute', bottom: '-25px', background: 'white', padding: '12px 25px', borderRadius: '50px', boxShadow: '0 5px 20px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: workload.c }}></div>
-            <span style={{ color: MONO_TEXTO, fontWeight: 'bold' }}>{safeText(workload.t)} · {safeText(workload.m)} aprox.</span>
-          </div>
+        <header style={{ 
+  position: 'relative', 
+  height: '240px', 
+  background: `linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.8) 100%), url(https://images.unsplash.com/photo-1541592106381-b31e9221c004?q=80&w=1000&auto=format&fit=crop)`, 
+  backgroundSize: 'cover', 
+  backgroundPosition: 'center', 
+  display: 'flex', 
+  flexDirection: 'column', 
+  justifyContent: 'flex-end', // Texto abajo para no tapar la foto
+  alignItems: 'center', 
+  color: 'white', 
+  borderRadius: '0 0 40px 40px',
+  paddingBottom: '40px'
+}}>
+  <h1 onClick={() => setMostrarLogin(true)} style={{ fontSize: '2.4rem', margin: 0, fontWeight: '800', letterSpacing: '-1px', cursor: 'pointer' }}>
+    Fritos El Mono
+  </h1>
+  <p style={{ margin: 0, opacity: 0.9, fontWeight: '400' }}>El sabor más crocante de Carepa 🐒</p>
         </header>
 
         {notificacion && (

@@ -55,3 +55,14 @@ export const generarMensajeCierre = ({ tVendido, pedidosTotal, vLocal, vDomi }) 
   `📦 Pedidos: ${pedidosTotal}%0A` +
   `🏠 Local: $${safeMoney(vLocal)}%0A` +
   `🛵 Domicilios: $${safeMoney(vDomi)}`;
+  let _beepAudio = null;
+export const playBeep = () => {
+  try {
+    if (!_beepAudio) {
+      _beepAudio = new Audio(
+        "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ9vT19vT19vT19vT19vT19v"
+      );
+    }
+    _beepAudio.play().catch(() => {});
+  } catch (_) {}
+};

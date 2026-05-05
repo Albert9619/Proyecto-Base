@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { playBeep } from '../utils/helpers';
 
 // ── Beep discreto para nuevos pedidos en admin ────────────────
 let _audio = null;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-
+import { playBeep } from '../utils/helpers';
 let _audio = null;
 const playBeep = () => {
   try {
